@@ -1,0 +1,171 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: #050505; }
+  ::-webkit-scrollbar-thumb { background: #003d00; border-radius: 9999px; }
+  ::-webkit-scrollbar-thumb:hover { background: #006619; }
+
+  body {
+    @apply bg-night-900 text-alien-silver;
+    font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  }
+}
+
+@layer components {
+  /* Panel Card */
+  .panel-card {
+    @apply border rounded-2xl overflow-hidden transition-all duration-300;
+    background: rgba(10, 10, 10, 0.85);
+    border-color: rgba(0, 255, 65, 0.12);
+    backdrop-filter: blur(12px);
+  }
+  .panel-card:hover {
+    border-color: rgba(0, 255, 65, 0.3);
+    box-shadow: 0 0 30px rgba(0, 255, 65, 0.06);
+  }
+
+  .panel-header {
+    @apply flex items-center justify-between px-6 py-4 border-b flex-wrap gap-2;
+    background: rgba(18, 18, 18, 0.6);
+    border-color: rgba(0, 255, 65, 0.1);
+  }
+
+  .panel-body { @apply p-6; }
+
+  .stats-badge {
+    @apply font-mono text-xs px-3 py-1 rounded border;
+    background: rgba(5, 5, 5, 0.6);
+    color: #a0a0a0;
+    border-color: rgba(0, 255, 65, 0.12);
+  }
+
+  .control-label { @apply text-sm font-medium; color: #a0a0a0; }
+
+  .control-select {
+    @apply px-3 py-2 text-sm rounded-lg border appearance-none cursor-pointer transition-colors;
+    background: rgba(5, 5, 5, 0.8);
+    color: #e0e0e0;
+    border-color: rgba(0, 255, 65, 0.2);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%23a0a0a0' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10l-5 5z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 10px center;
+    padding-right: 30px;
+  }
+  .control-select:focus { border-color: #00ff41; outline: none; box-shadow: 0 0 0 3px rgba(0, 255, 65, 0.15); }
+
+  .control-slider {
+    @apply w-full h-1 rounded-full appearance-none cursor-pointer;
+    background: rgba(0, 255, 65, 0.12);
+    outline: none;
+  }
+  .control-slider::-webkit-slider-thumb {
+    @apply appearance-none w-4 h-4 rounded-full cursor-pointer;
+    background: #00ff41;
+    box-shadow: 0 0 0 4px rgba(0, 255, 65, 0.2);
+  }
+  .control-slider::-moz-range-thumb {
+    @apply w-4 h-4 rounded-full cursor-pointer border-none;
+    background: #00ff41;
+  }
+
+  .control-number {
+    @apply w-full px-2.5 py-1.5 text-sm font-mono text-center rounded-lg border transition-colors;
+    background: rgba(5, 5, 5, 0.8);
+    color: #e0e0e0;
+    border-color: rgba(0, 255, 65, 0.2);
+  }
+  .control-number:focus { border-color: #00ff41; outline: none; box-shadow: 0 0 0 3px rgba(0, 255, 65, 0.15); }
+  .control-number::-webkit-inner-spin-button { -webkit-appearance: none; }
+
+  /* Buttons */
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 px-5 py-2 text-sm font-semibold rounded-lg border transition-all duration-200 whitespace-nowrap cursor-pointer select-none;
+  }
+  .btn:active { transform: scale(0.97); }
+
+  .btn-primary {
+    background: linear-gradient(135deg, #00cc33, #00ff41);
+    color: #050505;
+    border-color: #00ff41;
+  }
+  .btn-primary:hover {
+    box-shadow: 0 0 20px rgba(0, 255, 65, 0.4);
+    border-color: #7fff00;
+  }
+
+  .btn-secondary {
+    background: rgba(5, 5, 5, 0.8);
+    color: #a0a0a0;
+    border-color: rgba(0, 255, 65, 0.2);
+  }
+  .btn-secondary:hover {
+    background: rgba(0, 255, 65, 0.08);
+    color: #e0e0e0;
+    border-color: rgba(0, 255, 65, 0.35);
+  }
+
+  .btn-accent {
+    background: linear-gradient(135deg, #7fff00, #00ff41);
+    color: #050505;
+    border-color: #7fff00;
+  }
+  .btn-accent:hover { box-shadow: 0 0 20px rgba(127, 255, 0, 0.4); }
+
+  .btn-danger {
+    background: linear-gradient(135deg, #cc0022, #ff3355);
+    color: white;
+    border-color: #ff3355;
+  }
+  .btn-danger:hover { filter: brightness(1.15); }
+
+  .btn-outline {
+    background: transparent;
+    color: #a0a0a0;
+    border-color: rgba(0, 255, 65, 0.25);
+  }
+  .btn-outline:hover {
+    background: rgba(0, 255, 65, 0.08);
+    color: #e0e0e0;
+    border-color: rgba(0, 255, 65, 0.4);
+  }
+
+  .btn-sm { @apply px-3 py-1.5 text-xs; }
+
+  /* Chart Card */
+  .chart-card {
+    @apply rounded-xl overflow-hidden border;
+    background: rgba(10, 10, 10, 0.6);
+    border-color: rgba(0, 255, 65, 0.08);
+  }
+
+  .chart-header {
+    @apply flex items-center justify-between px-4 py-2 border-b;
+    background: rgba(18, 18, 18, 0.5);
+    border-color: rgba(0, 255, 65, 0.06);
+  }
+
+  .chart-title { @apply text-sm font-semibold; color: #a0a0a0; }
+  .chart-unit { @apply text-xs font-mono; color: #666666; }
+
+  .chart-container { @apply relative w-full px-2; height: 260px; }
+
+  .status-badge {
+    @apply font-mono text-xs px-3 py-1 rounded-lg border min-w-[100px] text-center;
+    background: rgba(5, 5, 5, 0.6);
+    border-color: rgba(0, 255, 65, 0.12);
+  }
+}
+
+@layer utilities {
+  .text-glow-neon {
+    text-shadow: 0 0 10px rgba(0, 255, 65, 0.5), 0 0 20px rgba(0, 255, 65, 0.2);
+  }
+  .text-glow-lime {
+    text-shadow: 0 0 10px rgba(127, 255, 0, 0.5), 0 0 20px rgba(127, 255, 0, 0.2);
+  }
+  .border-glow-neon {
+    box-shadow: 0 0 10px rgba(0, 255, 65, 0.12), inset 0 0 10px rgba(0, 255, 65, 0.03);
+  }
+}
