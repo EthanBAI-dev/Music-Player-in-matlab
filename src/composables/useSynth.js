@@ -99,9 +99,9 @@ export function useSynth() {
     filterNode.frequency.value = filterCfg.cutoff || 12000
     filterNode.Q.value = filterCfg.resonance || 0.3
 
-    // Filter envelope
+    // Filter envelope (pass-through gain node for filter modulation)
     filterEnv = ctx.createGain()
-    filterEnv.gain.value = 0
+    filterEnv.gain.value = 1
 
     // Effects
     // Reverb: simple convolver with generated impulse response
