@@ -1,27 +1,23 @@
 <template>
-  <section class="panel-card">
+  <section id="audio" class="panel-card">
     <div class="panel-header">
       <div class="flex items-center gap-3">
-        <h2 class="text-base sm:text-lg font-semibold" style="color: #e0e0e0;">Audio Control</h2>
-        <span class="text-[11px] px-2.5 py-0.5 rounded-full font-medium" style="background: rgba(0,255,65,0.1); color: #00ff41;">通信面板</span>
+        <h2 class="text-base sm:text-lg font-semibold" style="color: #d4cfc8;">Audio Controls</h2>
+        <span class="text-[11px] px-2.5 py-0.5 rounded-full font-medium" style="background: rgba(196,149,106,0.08); color: #d0ae8c;">音频控制</span>
       </div>
-      <span class="status-badge" :style="statusStyle">{{ status }}</span>
+      <span class="status-badge" :class="statusClass">{{ statusLabel }}</span>
     </div>
     <div class="panel-body">
-      <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 sm:gap-4">
-        <div class="flex items-center gap-2 shrink-0">
-          <label for="audioFile" class="btn btn-outline btn-sm cursor-pointer">Load Audio</label>
-          <input type="file" id="audioFile" accept=".mp3,.wav,.ogg" hidden @change="onFileChange">
-          <span class="text-sm max-w-[140px] sm:max-w-[200px] truncate" style="color: #666666;">{{ fileName || 'No file selected' }}</span>
+      <div class="flex flex-wrap items-center gap-3">
+        <div class="file-input-wrap">
+          <button class="btn btn-secondary">Load Audio</button>
+          <input type="file" accept="audio/*" @change="onFileChange">
         </div>
-        <div class="flex items-center gap-2 flex-wrap justify-center">
-          <button class="btn btn-primary btn-sm" @click="$emit('playOriginal')">Play Original</button>
-          <button class="btn btn-accent btn-sm" @click="$emit('playEqualized')">Play EQ</button>
-          <button class="btn btn-danger btn-sm" @click="$emit('stop')">Stop</button>
-        </div>
-        <div class="flex items-center gap-2 shrink-0 justify-center sm:justify-end">
-          <button class="btn btn-outline btn-sm" @click="$emit('save')">Save WAV</button>
-        </div>
+        <button class="btn btn-primary" @click="$emit('play-original')">Play Original</button>
+        <button class="btn btn-accent" @click="$emit('play-equalized')">Play Equalized</button>
+        <button class="btn btn-secondary" @click="$emit('stop')">Stop</button>
+        <button class="btn btn-outline" @click="$emit('save')">Save WAV</button>
+        <span v-if="fileName" class="text-sm font-mono" style="color: #666360;">{{ fileName }}</span>
       </div>
     </div>
   </section>
@@ -31,18 +27,58 @@
 import { computed } from 'vue'
 
 const props = defineProps({ status: String, fileName: String })
-const emit = defineEmits(['fileLoaded', 'playOriginal', 'playEqualized', 'stop', 'save'])
+defineEmits(['file-loaded', 'play-original', 'play-equalized', 'stop', 'save'])
 
-const statusStyle = computed(() => {
-  const s = props.status || ''
-  if (s.includes('Error')) return { color: '#ff3355', borderColor: 'rgba(255,51,85,0.2)', background: 'rgba(255,51,85,0.06)' }
-  if (s.includes('...') || s.includes('ing')) return { color: '#ffb300', borderColor: 'rgba(255,179,0,0.2)', background: 'rgba(255,179,0,0.06)' }
-  if (s.includes('playing') || s.includes('Playing')) return { color: '#00ff41', borderColor: 'rgba(0,255,65,0.2)', background: 'rgba(0,255,65,0.06)' }
-  return { color: '#a0a0a0', borderColor: 'rgba(0,255,65,0.12)', background: 'rgba(5,5,5,0.6)' }
+const statusMap = {
+  idle: { label: 'Idle', class: '' },
+  loading: { label: 'Loading', class: '' },
+  ready: { label: 'Ready', class: '' },
+  playing: { label: 'Playing', class: '' },
+  error: { label: 'Error', class: '' }
+}
+
+const statusLabel = computed(() => {
+  const s = statusMap[props.status]
+  return s ? s.label : props.status
+})
+
+const statusClass = computed(() => {
+  if (props.status === 'playing') return 'status-playing'
+  if (props.status === 'error') return 'status-error'
+  if (props.status === 'loading') return 'status-loading'
+  return ''
 })
 
 function onFileChange(e) {
   const file = e.target.files[0]
-  if (file) emit('fileLoaded', file)
+  if (file) this.$emit('file-loaded', file)
 }
 </script>
+
+<style scoped>
+.file-input-wrap { position: relative; }
+.file-input-wrap input[type="file"] {
+  position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%;
+}
+.status-badge {
+  @apply font-mono text-xs px-3 py-1 rounded-lg border min-w-[100px] text-center;
+  background: rgba(5, 5, 5, 0.6);
+  border-color: rgba(196, 149, 106, 0.08);
+  color: #8a857e;
+}
+.status-playing {
+  border-color: rgba(196, 149, 106, 0.2);
+  background: rgba(196, 149, 106, 0.08);
+  color: #d0ae8c;
+}
+.status-error {
+  border-color: rgba(255, 51, 85, 0.2);
+  background: rgba(255, 51, 85, 0.06);
+  color: #ff5577;
+}
+.status-loading {
+  border-color: rgba(255, 179, 0, 0.2);
+  background: rgba(255, 179, 0, 0.06);
+  color: #ffb300;
+}
+</style>

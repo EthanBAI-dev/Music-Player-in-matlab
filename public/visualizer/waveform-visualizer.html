@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Real-time Waveform Visualizer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: #050505;
+  color: #b0b0b0;
+  font-family: 'Sora', system-ui, sans-serif;
+  overflow: hidden;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  font-weight: 400;
+}
+
+/* Controls Bar — instrument panel style */
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  background: #080808;
+  border-bottom: 1px solid rgba(255,255,255,0.03);
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.controls-label {
+  color: #555;
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  margin-right: 4px;
+}
+
+.btn {
+  padding: 5px 14px;
+  border-radius: 4px;
+  border: 1px solid rgba(255,255,255,0.06);
+  background: transparent;
+  color: #888;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s, color 0.2s;
+  outline: none;
+  letter-spacing: 0.3px;
+}
+.btn:hover { background: rgba(255,255,255,0.04); border-color: rgba(255,255,255,0.12); color: #ddd; }
+.btn:active { background: rgba(255,255,255,0.07); }
+.btn:focus-visible {
+  box-shadow: 0 0 0 2px #050505, 0 0 0 3px rgba(255,255,255,0.25);
+}
+.btn.primary {
+  background: #d0d0d0;
+  color: #0a0a0a;
+  border-color: #d0d0d0;
+  font-weight: 500;
+}
+.btn.primary:hover { background: #eee; border-color: #eee; color: #0a0a0a; }
+.btn.primary:focus-visible {
+  box-shadow: 0 0 0 2px #050505, 0 0 0 3px rgba(255,255,255,0.4);
+}
+.btn:disabled { opacity: 0.3; cursor: not-allowed; }
+.btn:disabled:active { background: transparent; }
+
+.file-input-wrap { position: relative; }
+.file-input-wrap input[type="file"] {
+  position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%;
+}
+
+.status-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  color: #555;
+  font-size: 10px;
+  letter-spacing: 0.5px;
+}
+.status-dot {
+  display: inline-block; width: 5px; height: 5px; border-radius: 50%;
+}
+.status-dot.ready { background: #d0d0d0; }
+.status-dot.playing { background: #fff; animation: pulse-dot 0.8s ease-in-out infinite; }
+.status-dot.stopped { background: #444; }
+@keyframes pulse-dot { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+.file-name {
+  color: #555;
+  font-size: 10px;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  letter-spacing: 0.3px;
+}
+.file-name:not(:empty) { color: #888; }
+
+/* Canvas Container — the instrument display */
+.canvas-wrapper {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  position: relative;
+  background:
+    radial-gradient(ellipse at 50% 60%, rgba(0,255,65,0.015) 0%, transparent 70%);
+}
+
+#waveform {
+  width: 100%;
+  height: 100%;
+  border-radius: 4px;
+  border: 1px solid rgba(255,255,255,0.04);
+  background: #080808;
+  display: block;
+}
+
+/* Overlay Status */
+.status-overlay {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  pointer-events: none;
+  transition: opacity 0.3s;
+}
+.status-overlay.hidden { opacity: 0; }
+.status-overlay .glyph {
+  font-size: 28px;
+  margin-bottom: 10px;
+  opacity: 0.08;
+  color: #fff;
+  letter-spacing: 4px;
+}
+.status-overlay .text { color: #555; font-size: 12px; letter-spacing: 0.5px; }
+.status-overlay .sub { color: #444; font-size: 10px; margin-top: 5px; letter-spacing: 0.3px; }
+
+/* Badge */
+.mode-badge {
+  position: absolute;
+  bottom: 26px; right: 26px;
+  padding: 3px 10px;
+  border-radius: 2px;
+  font-size: 9px;
+  letter-spacing: 1.5px;
+  color: #333;
+  border: 1px solid rgba(255,255,255,0.03);
+  pointer-events: none;
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .status-dot.playing { animation: none; }
+  .status-overlay { transition: opacity 0.1s; }
+}
+
+@media (max-width: 640px) {
+  .controls { padding: 8px 10px; gap: 6px; }
+  .status-group { margin-left: 0; width: 100%; }
+  .canvas-wrapper { padding: 8px; }
+  .file-name { max-width: 80px; }
+}
+</style>
+</head>
+<body>
+<div class="controls">
+  <span class="controls-label">Waveform</span>
+  <div class="file-input-wrap">
+    <button class="btn" id="uploadBtn">Load Audio</button>
+    <input type="file" id="fileInput" accept="audio/*">
+  </div>
+  <button class="btn primary" id="playBtn" disabled aria-label="Play audio">Play</button>
+  <button class="btn" id="pauseBtn" disabled aria-label="Pause playback">Pause</button>
+  <button class="btn" id="stopBtn" disabled aria-label="Stop playback">Stop</button>
+  <span class="file-name" id="fileName"></span>
+  <span class="status-group" id="statusText" role="status" aria-live="polite">
+    <span class="status-dot stopped" aria-hidden="true"></span>Standby
+  </span>
+</div>
+
+<div class="canvas-wrapper">
+  <canvas id="waveform"></canvas>
+  <div class="status-overlay" id="statusOverlay">
+    <div class="glyph">~ ~</div>
+    <div class="text">Load an audio file to begin</div>
+    <div class="sub">Drop a file or click Load Audio</div>
+  </div>
+  <div class="mode-badge">REAL-TIME</div>
+</div>
+
+<script>
+(function() {
+  const canvas = document.getElementById('waveform');
+  const ctx = canvas.getContext('2d');
+  const fileInput = document.getElementById('fileInput');
+  const playBtn = document.getElementById('playBtn');
+  const pauseBtn = document.getElementById('pauseBtn');
+  const stopBtn = document.getElementById('stopBtn');
+  const fileName = document.getElementById('fileName');
+  const statusText = document.getElementById('statusText');
+  const overlay = document.getElementById('statusOverlay');
+
+  // Audio state
+  let audioCtx = null;
+  let analyser = null;
+  let source = null;
+  let gainNode = null;
+  let audioBuffer = null;
+  let isPlaying = false;
+  let isPaused = false;
+  let animId = null;
+  let animPaused = false;
+  const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // Resize handling
+  let W, H;
+
+  function resize() {
+    const rect = canvas.parentElement.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    W = rect.width;
+    H = rect.height;
+    canvas.width = W * dpr;
+    canvas.height = H * dpr;
+    canvas.style.width = W + 'px';
+    canvas.style.height = H + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  function setStatus(type, msg) {
+    const dot = statusText.querySelector('.status-dot');
+    dot.className = 'status-dot ' + type;
+    statusText.childNodes[1].textContent = ' ' + msg;
+  }
+
+  function showOverlay(hide) {
+    overlay.classList.toggle('hidden', hide);
+  }
+
+  // Draw grid — minimal oscilloscope style
+  function drawGrid() {
+    ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+    ctx.lineWidth = 0.5;
+    for (let y = 0; y < H; y += H / 8) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(W, y);
+      ctx.stroke();
+    }
+    for (let x = 0; x < W; x += W / 12) {
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, H);
+      ctx.stroke();
+    }
+    // Center zero axis — thin, subtle
+    ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+    ctx.lineWidth = 0.5;
+    ctx.beginPath();
+    ctx.moveTo(0, H/2);
+    ctx.lineTo(W, H/2);
+    ctx.stroke();
+  }
+
+  // Draw waveform — clean oscilloscope style
+  function drawWaveform(dataArray) {
+    const centerY = H / 2;
+    const len = dataArray.length;
+    const step = W / len;
+
+    // Semi-transparent fill under waveform
+    ctx.beginPath();
+    ctx.moveTo(0, centerY);
+    for (let i = 0; i < len; i++) {
+      const val = (dataArray[i] - 128) / 128;
+      const y = centerY + val * (centerY * 0.85);
+      ctx.lineTo(i * step, y);
+    }
+    ctx.lineTo(W, centerY);
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(0,255,65,0.03)';
+    ctx.fill();
+
+    // Main waveform — thin crisp line
+    ctx.beginPath();
+    for (let i = 0; i < len; i++) {
+      const val = (dataArray[i] - 128) / 128;
+      const x = i * step;
+      const y = centerY + val * (centerY * 0.85);
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.strokeStyle = '#00ff41';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+  }
+
+  // Draw scrolling waveform — clean waterfall style
+  let historyBuffer = [];
+
+  function drawScrollingWaveform(dataArray) {
+    // Downsample and add new column
+    const col = [];
+    for (let i = 0; i < dataArray.length; i += 4) {
+      col.push(dataArray[i]);
+    }
+    historyBuffer.push(col);
+
+    // Limit history length
+    const maxHistory = Math.floor(W / 2);
+    while (historyBuffer.length > maxHistory) {
+      historyBuffer.shift();
+    }
+
+    const centerY = H / 2;
+    const colCount = historyBuffer.length;
+    const step = W / colCount;
+
+    // Draw fading trace columns (older = dimmer)
+    for (let c = 0; c < colCount; c++) {
+      const colData = historyBuffer[c];
+      const alpha = 0.02 + 0.12 * (c / colCount);
+      ctx.strokeStyle = `rgba(0,255,65,${alpha})`;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      const xBase = c * step;
+      for (let i = 0; i < colData.length; i++) {
+        const val = (colData[i] - 128) / 128;
+        const y = centerY + val * (centerY * 0.85);
+        if (i === 0) ctx.moveTo(xBase, y);
+        else ctx.lineTo(xBase, y);
+      }
+      ctx.stroke();
+    }
+  }
+
+  // Animation loop
+  function animate() {
+    if (!analyser || !isPlaying) {
+      ctx.clearRect(0, 0, W, H);
+      drawGrid();
+      animId = requestAnimationFrame(animate);
+      return;
+    }
+
+    const bufferLength = analyser.frequencyBinCount;
+    const dataArray = new Uint8Array(bufferLength);
+    analyser.getByteTimeDomainData(dataArray);
+
+    ctx.clearRect(0, 0, W, H);
+    drawGrid();
+    drawWaveform(dataArray);
+    drawScrollingWaveform(dataArray);
+
+    animId = requestAnimationFrame(animate);
+  }
+
+  // Initialize audio context
+  function initAudio() {
+    if (!audioCtx) {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 2048;
+      gainNode = audioCtx.createGain();
+      gainNode.gain.value = 0.8;
+    }
+    if (audioCtx.state === 'suspended') {
+      audioCtx.resume();
+    }
+  }
+
+  // Load audio file
+  function loadAudioFile(file) {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const arrayBuffer = e.target.result;
+      audioCtx.decodeAudioData(arrayBuffer, function(buffer) {
+        audioBuffer = buffer;
+        fileName.textContent = file.name;
+        playBtn.disabled = false;
+        setStatus('ready', 'Ready');
+        showOverlay(true);
+        initAudioSource();
+      }, function(err) {
+        console.error('Decode error:', err);
+        setStatus('stopped', 'Decode Failed');
+      });
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
+  function initAudioSource() {
+    if (source) {
+      source.disconnect();
+      source = null;
+    }
+    source = audioCtx.createBufferSource();
+    source.buffer = audioBuffer;
+    source.loop = true;
+    source.connect(analyser);
+    analyser.connect(gainNode);
+    gainNode.connect(audioCtx.destination);
+  }
+
+  function play() {
+    if (!audioBuffer) return;
+    initAudio();
+    if (!source || source.buffer !== audioBuffer) {
+      initAudioSource();
+    }
+    source.start(0);
+    isPlaying = true;
+    isPaused = false;
+    playBtn.disabled = true;
+    pauseBtn.disabled = false;
+    stopBtn.disabled = false;
+    setStatus('playing', 'Playing');
+  }
+
+  function pause() {
+    if (!isPlaying) return;
+    if (audioCtx.state === 'running') {
+      audioCtx.suspend();
+    }
+    isPaused = true;
+    isPlaying = false;
+    playBtn.disabled = false;
+    pauseBtn.disabled = true;
+    setStatus('ready', 'Paused');
+  }
+
+  function stop() {
+    if (source) {
+      try { source.stop(); } catch(e) {}
+      source.disconnect();
+      source = null;
+    }
+    isPlaying = false;
+    isPaused = false;
+    historyBuffer = [];
+    playBtn.disabled = audioBuffer ? false : true;
+    pauseBtn.disabled = true;
+    stopBtn.disabled = true;
+    if (audioCtx && audioCtx.state === 'suspended') {
+      audioCtx.resume();
+    }
+    setStatus('ready', 'Stopped');
+  }
+
+  // Event listeners
+  fileInput.addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (isPlaying) stop();
+    initAudio();
+    loadAudioFile(file);
+  });
+
+  playBtn.addEventListener('click', play);
+  pauseBtn.addEventListener('click', pause);
+  stopBtn.addEventListener('click', stop);
+
+  // Drag and drop support
+  document.addEventListener('dragover', function(e) { e.preventDefault(); });
+  document.addEventListener('drop', function(e) {
+    e.preventDefault();
+    const file = e.dataTransfer.files[0];
+    if (!file || !file.type.startsWith('audio/')) return;
+    if (isPlaying) stop();
+    initAudio();
+    loadAudioFile(file);
+  });
+
+  // Keyboard shortcuts
+  document.addEventListener('keydown', function(e) {
+    if (e.target.tagName === 'INPUT') return;
+    if (e.key === ' ' || e.key === 'Space') {
+      e.preventDefault();
+      if (isPlaying) pause();
+      else if (audioBuffer) play();
+    }
+    if (e.key === 's' || e.key === 'S') {
+      if (isPlaying || isPaused) stop();
+    }
+  });
+
+  // Init canvas and start animation
+  resize();
+  animate();
+
+  // Handle visibility change - pause when hidden to save resources
+  document.addEventListener('visibilitychange', function() {
+    if (document.hidden) {
+      animPaused = true;
+      if (animId) { cancelAnimationFrame(animId); animId = null; }
+    } else {
+      animPaused = false;
+      if (!animId) animate();
+    }
+  });
+
+  // Respect prefers-reduced-motion
+  if (prefersReducedMotion) {
+    // Show static grid only, no idle animation
+    function drawStatic() {
+      ctx.clearRect(0, 0, W, H);
+      drawGrid();
+    }
+    const origAnimate = animate;
+    animate = function() {
+      if (!analyser || !isPlaying) {
+        drawStatic();
+        return;
+      }
+      origAnimate.call(this);
+    };
+  }
+
+  // Cleanup on page unload
+  window.addEventListener('beforeunload', function() {
+    if (animId) cancelAnimationFrame(animId);
+    if (source) {
+      try { source.stop(); } catch(e) {}
+    }
+    if (audioCtx) {
+      audioCtx.close();
+    }
+  });
+
+})();
+</script>
+</body>
+</html>
