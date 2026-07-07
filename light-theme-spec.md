@@ -1,4 +1,4 @@
-# Light Theme Design Specification — Music Player & Synthesizer
+# Light Theme Design Specification — Soniq
 
 ## 1. Design Philosophy
 
