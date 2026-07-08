@@ -3,93 +3,98 @@
 @tailwind utilities;
 
 /* ============================================
-   Light Theme — Music Player & Synthesizer
-   Design Spec: /light-theme-spec.md
+   Light Theme — White + Steel Blue
    ============================================ */
 
 :root {
   /* ——— Background System ——— */
-  --bg-primary: #F4F2ED;
-  --bg-secondary: #FFFFFF;
-  --bg-tertiary: #E8E5E0;
+  --bg-primary: #FFFFFF;
+  --bg-secondary: #F5F7FA;
+  --bg-tertiary: #EFF2F6;
   --bg-elevated: #FFFFFF;
 
   /* ——— Text System ——— */
-  --text-primary: #1E1D1A;
-  --text-secondary: #6B6760;
-  --text-tertiary: #9C9892;
+  --text-primary: #1E293B;
+  --text-secondary: #475569;
+  --text-tertiary: #94A3B8;
   --text-inverse: #FFFFFF;
 
   /* ——— Border System ——— */
-  --border-primary: #D6D2CC;
-  --border-secondary: #E8E5E0;
+  --border-primary: #CBD5E1;
+  --border-secondary: #E2E8F0;
 
-  /* ——— Accent Colors ——— */
-  --accent-copper: #C4845C;
-  --accent-copper-hover: #B3744C;
-  --accent-copper-light: rgba(196, 132, 92, 0.12);
-  --accent-sage: #6B8F7A;
-  --accent-sage-hover: #5A7E68;
-  --accent-sage-light: rgba(107, 143, 122, 0.12);
-  --accent-gold: #C9A04A;
-  --accent-gold-hover: #B88E38;
-  --accent-gold-light: rgba(201, 160, 74, 0.12);
-  --accent-slate: #5A7D8F;
-  --accent-slate-hover: #4A6B7C;
-  --accent-slate-light: rgba(90, 125, 143, 0.12);
+  /* ——— Accent Colors — Steel Blue ——— */
+  --accent-primary: #5B7FA5;
+  --accent-primary-hover: #4A6E92;
+  --accent-primary-light: rgba(91, 127, 165, 0.12);
+  /* Legacy alias for backward compatibility */
+  --accent-copper: #5B7FA5;
+  --accent-copper-hover: #4A6E92;
+  --accent-copper-light: rgba(91, 127, 165, 0.12);
+
+  /* ——— Accent Colors — Complementary ——— */
+  --accent-sage: #7B9DBB;
+  --accent-sage-hover: #6A8DAA;
+  --accent-sage-light: rgba(123, 157, 187, 0.12);
+  --accent-gold: #C4953A;
+  --accent-gold-hover: #B3852A;
+  --accent-gold-light: rgba(196, 149, 58, 0.12);
+  --accent-slate: #4A6B7C;
+  --accent-slate-hover: #3A5B6C;
+  --accent-slate-light: rgba(74, 107, 124, 0.12);
 
   /* ——— Shadow System ——— */
-  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.04);
-  --shadow-sm: 0 1px 4px rgba(0, 0, 0, 0.06);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.06);
-  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.08);
-  --shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.10);
+  --shadow-xs: 0 1px 2px rgba(30, 41, 59, 0.04);
+  --shadow-sm: 0 1px 4px rgba(30, 41, 59, 0.06);
+  --shadow-md: 0 4px 12px rgba(30, 41, 59, 0.06);
+  --shadow-lg: 0 8px 24px rgba(30, 41, 59, 0.08);
+  --shadow-xl: 0 16px 48px rgba(30, 41, 59, 0.10);
 
   /* ——— Surface Tokens ——— */
   --surface-card: #FFFFFF;
-  --surface-panel: #FFFFFF;
+  --surface-panel: #F5F7FA;
   --surface-modal: #FFFFFF;
 
   /* ——— Slider ——— */
-  --slider-track: #D6D2CC;
-  --slider-thumb: #C4845C;
+  --slider-track: #CBD5E1;
+  --slider-thumb: #5B7FA5;
 
   /* ——— Button ——— */
-  --btn-primary-bg: #C4845C;
+  --btn-primary-bg: #5B7FA5;
   --btn-primary-text: #FFFFFF;
-  --btn-primary-border: #C4845C;
-  --btn-primary-hover-bg: #B3744C;
+  --btn-primary-border: #5B7FA5;
+  --btn-primary-hover-bg: #4A6E92;
 
-  --btn-secondary-text: #6B6760;
-  --btn-secondary-border: #D6D2CC;
-  --btn-secondary-hover-bg: #EDEBE6;
+  --btn-secondary-text: #475569;
+  --btn-secondary-border: #CBD5E1;
+  --btn-secondary-hover-bg: #EFF2F6;
 
   /* ——— Input ——— */
   --input-bg: #FFFFFF;
-  --input-text: #1E1D1A;
-  --input-border: #D6D2CC;
-  --input-border-focus: #C4845C;
-  --input-placeholder: #9C9892;
+  --input-text: #1E293B;
+  --input-border: #CBD5E1;
+  --input-border-focus: #5B7FA5;
+  --input-placeholder: #94A3B8;
 
   /* ——— Piano Keyboard ——— */
   --key-white-bg: #FFFFFF;
-  --key-white-text: #6B6760;
-  --key-white-border: #E0DDD8;
-  --key-white-active-bg: #C4845C;
+  --key-white-text: #475569;
+  --key-white-border: #D6DEE8;
+  --key-white-active-bg: #5B7FA5;
   --key-white-active-text: #FFFFFF;
-  --key-black-bg: #3D3A36;
-  --key-black-active-bg: #C4845C;
+  --key-black-bg: #334155;
+  --key-black-active-bg: #5B7FA5;
 
   /* ——— Spectrum / Waveform ——— */
   --spectrum-bg: #FFFFFF;
-  --spectrum-bar: #C4845C;
+  --spectrum-bar: #5B7FA5;
   --waveform-bg: #FFFFFF;
-  --waveform-line: #C4845C;
+  --waveform-line: #5B7FA5;
 
   /* ——— Scrollbar ——— */
-  --scrollbar-track: #E8E5E0;
-  --scrollbar-thumb: #C4C0BA;
-  --scrollbar-thumb-hover: #A8A49E;
+  --scrollbar-track: #EFF2F6;
+  --scrollbar-thumb: #CBD5E1;
+  --scrollbar-thumb-hover: #94A3B8;
 
   /* ——— Typography ——— */
   --font-sans: 'DM Sans', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
@@ -143,7 +148,7 @@
   }
 
   ::selection {
-    background: var(--accent-copper-light);
+    background: var(--accent-primary-light);
     color: var(--text-primary);
   }
 }
@@ -163,7 +168,7 @@
   }
   .panel-card:hover {
     box-shadow: var(--shadow-md);
-    border-color: var(--accent-copper);
+    border-color: var(--accent-primary);
   }
 
   .panel-header {
@@ -210,7 +215,7 @@
     appearance: none;
     cursor: pointer;
     transition: border-color 200ms ease, box-shadow 200ms ease;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%239C9892' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10l-5 5z'/%3E%3C/svg%3E");
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%2394A3B8' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10l-5 5z'/%3E%3C/svg%3E");
     background-repeat: no-repeat;
     background-position: right 10px center;
     padding-right: 30px;
@@ -218,7 +223,7 @@
   .control-select:focus {
     border-color: var(--input-border-focus);
     outline: none;
-    box-shadow: 0 0 0 3px var(--accent-copper-light);
+    box-shadow: 0 0 0 3px var(--accent-primary-light);
   }
 
   /* ——— Slider ——— */
@@ -271,7 +276,7 @@
   .control-number:focus {
     border-color: var(--input-border-focus);
     outline: none;
-    box-shadow: 0 0 0 3px var(--accent-copper-light);
+    box-shadow: 0 0 0 3px var(--accent-primary-light);
   }
 
   /* ——— Buttons ——— */
