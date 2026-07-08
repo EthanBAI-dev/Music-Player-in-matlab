@@ -41,14 +41,14 @@ function generateIR(ctx, type, time, earlyReflections) {
   return buffer
 }
 
+const EQ_FREQS = [31, 62, 125, 250, 500, 1000, 2000, 4000, 8000, 16000]
+
 export function useAudio() {
   const audioContext = ref(null)
   const audioBuffer = ref(null)
   const audioSource = ref(null)
-  const equalizedData = ref(null)
   const loadedFileName = ref('')
   const isPlaying = ref(false)
-  const isEQMode = ref(false)
   const status = ref('Ready')
   const analyserNode = ref(null)
   const currentTime = ref(0)
@@ -86,6 +86,10 @@ export function useAudio() {
   let _delayFb = null
   let _delayWet = null
 
+  // Internal EQ nodes (real-time BiquadFilterNode chain)
+  let _eqFilters = []
+  let _eqInit = false
+
   function getCtx() {
     if (!audioContext.value) {
       audioContext.value = new (window.AudioContext || window.webkitAudioContext)()
@@ -103,6 +107,67 @@ export function useAudio() {
       analyserNode.value.fftSize = 2048
     }
     return analyserNode.value
+  }
+
+  // ===== Real-time EQ Chain (BiquadFilterNode) =====
+
+  function initEQChain() {
+    if (_eqInit) return
+    const ctx = getCtx()
+    const analyser = getAnalyser()
+
+    // Create 10 peaking filters in series
+    const filters = EQ_FREQS.map(freq => {
+      const f = ctx.createBiquadFilter()
+      f.type = 'peaking'
+      f.frequency.value = freq
+      f.Q.value = 1.41   // standard Q for 1/3-octave graphic EQ
+      f.gain.value = 0   // start at 0dB
+      return f
+    })
+
+    // Connect in series: filter[0] → filter[1] → ... → filter[9]
+    for (let i = 0; i < filters.length - 1; i++) {
+      filters[i].connect(filters[i + 1])
+    }
+
+    // Last filter connects to analyser
+    filters[filters.length - 1].connect(analyser)
+
+    _eqFilters = filters
+    _eqInit = true
+    console.log('[EQ] initEQChain: 10 BiquadFilterNodes created and connected', _eqFilters.length)
+  }
+
+  /** Update a single EQ band in real time */
+  function updateEQBand(index, gainDb) {
+    if (!_eqFilters[index]) {
+      console.warn('[EQ] updateEQBand skipped: no filter at index', index)
+      return
+    }
+    _eqFilters[index].gain.value = gainDb
+    console.log('[EQ] updateEQBand: band', index, '→', gainDb.toFixed(1), 'dB')
+  }
+
+  /** Apply all 10 EQ gains at once (used when playback starts) */
+  function applyEQGains(gains) {
+    if (!_eqInit || !_eqFilters.length) {
+      console.warn('[EQ] applyEQGains skipped: EQ not initialized')
+      return
+    }
+    for (let i = 0; i < Math.min(gains.length, _eqFilters.length); i++) {
+      _eqFilters[i].gain.value = gains[i]
+    }
+    console.log('[EQ] applyEQGains: applied gains', gains.map(g => g.toFixed(1)).join(','))
+  }
+
+  /** Offline FFT-based EQ processing for export/save only */
+  function exportEQ(gains, fs) {
+    if (!audioBuffer.value) return null
+    const channelData = audioBuffer.value.getChannelData(0)
+    const signal = new Float64Array(channelData.length)
+    for (let i = 0; i < channelData.length; i++) signal[i] = channelData[i]
+    return processEqualizer(signal, fs, gains)
   }
 
   // ===== FX Chain Management =====
@@ -195,7 +260,6 @@ export function useAudio() {
       const decoded = await ctx.decodeAudioData(buf)
       audioBuffer.value = decoded
       duration.value = decoded.duration
-      isEQMode.value = false
       status.value = `Loaded: ${file.name}`
       return decoded
     } catch (err) {
@@ -213,16 +277,22 @@ export function useAudio() {
     const ctx = getCtx()
     const src = ctx.createBufferSource()
     src.buffer = buffer
-    const analyser = getAnalyser()
-    src.connect(analyser)
-    // Set up FX chain (permanent after first call)
+
+    // Initialize EQ chain and FX chain (permanent after first call)
+    initEQChain()
     initFXChain()
     applyFXParams()
+
+    // Signal path: source → EQ filters (×10 peaking) → analyser → FX → destination
+    src.connect(_eqFilters[0])
+    console.log('[EQ] playBufferFrom: source connected to eqFilters[0], playing at offset', offset)
+
     const seekTime = ctx.currentTime
     src.start(0, offset)
     audioSource.value = src
     isPlaying.value = true
     currentTime.value = offset
+    status.value = 'Playing'
 
     const updateTime = () => {
       if (!isPlaying.value || !audioBuffer.value) return
@@ -241,54 +311,8 @@ export function useAudio() {
       status.value = 'Please load an audio file first'
       return
     }
-    isEQMode.value = false
     playBuffer(audioBuffer.value, fs)
     status.value = 'Playing'
-  }
-
-  function playEqualized(fs, gains) {
-    if (!audioBuffer.value) {
-      status.value = 'Please load an audio file first'
-      return
-    }
-    isEQMode.value = true
-    const processed = _processEQ(gains, fs)
-    const ctx = getCtx()
-    const buffer = ctx.createBuffer(1, processed.length, fs)
-    const channel = buffer.getChannelData(0)
-    for (let i = 0; i < processed.length; i++) channel[i] = Math.max(-1, Math.min(1, processed[i]))
-    playBuffer(buffer, fs)
-    status.value = 'Playing (EQ)'
-  }
-
-  function updateEQ(gains, fs, fromTime) {
-    if (!audioBuffer.value) return
-    const processed = _processEQ(gains, fs)
-    const ctx = getCtx()
-    const buffer = ctx.createBuffer(1, processed.length, fs)
-    const channel = buffer.getChannelData(0)
-    for (let i = 0; i < processed.length; i++) channel[i] = Math.max(-1, Math.min(1, processed[i]))
-    playBufferFrom(buffer, fs, fromTime || 0)
-  }
-
-  function seekEQ(time, fs, gains) {
-    if (!audioBuffer.value) return
-    isEQMode.value = true
-    const processed = _processEQ(gains, fs)
-    const ctx = getCtx()
-    const buffer = ctx.createBuffer(1, processed.length, fs)
-    const channel = buffer.getChannelData(0)
-    for (let i = 0; i < processed.length; i++) channel[i] = Math.max(-1, Math.min(1, processed[i]))
-    playBufferFrom(buffer, fs, time)
-  }
-
-  function _processEQ(gains, fs) {
-    const channelData = audioBuffer.value.getChannelData(0)
-    const signal = new Float64Array(channelData.length)
-    for (let i = 0; i < channelData.length; i++) signal[i] = channelData[i]
-    const processed = processEqualizer(signal, fs, gains)
-    equalizedData.value = processed
-    return processed
   }
 
   function stop() {
@@ -297,22 +321,12 @@ export function useAudio() {
       audioSource.value = null
     }
     isPlaying.value = false
-    isEQMode.value = false
     currentTime.value = 0
     status.value = 'Stopped'
   }
 
-  function saveWav() {
-    if (!equalizedData.value) {
-      status.value = 'No equalized data to save'
-      return null
-    }
-    return equalizedData.value
-  }
-
   function seek(time) {
     if (!audioBuffer.value) return
-    if (isEQMode.value) return
     const fs = audioBuffer.value.sampleRate
     playBufferFrom(audioBuffer.value, fs, time)
   }
@@ -376,19 +390,19 @@ export function useAudio() {
     audioBuffer.value = rec.buffer
     duration.value = rec.duration
     loadedFileName.value = rec.name
-    isEQMode.value = false
     status.value = `Loaded: ${rec.name}`
   }
 
   function setStatus(text) { status.value = text }
 
   return {
-    audioBuffer, equalizedData, loadedFileName, isPlaying, isEQMode,
+    audioBuffer, loadedFileName, isPlaying,
     status, analyserNode, currentTime, duration,
     isRecording, recordingAnalyser, recordedBuffers,
-    loadFile, playOriginal, playEqualized, updateEQ, seekEQ,
-    playBufferFrom, stop, saveWav, seek, setStatus,
+    loadFile, playOriginal, playBufferFrom, stop, seek, setStatus,
     startRecording, stopRecording, loadRecorded,
+    // Real-time EQ
+    updateEQBand, applyEQGains, exportEQ,
     // FX
     fxEnabled, reverbType, reverbTime, reverbMix, reverbEarlyReflections,
     delayTimeMs, delayFeedback, delayMix, delaySync, bpm,

@@ -28,11 +28,9 @@
         v-if="currentTab === 'player'"
         :audio="audio"
         :gains="eqGains"
-        @update:gains="eqGains = [...$event]"
+        @update:gains="eqGains.value = $event"
         @file-loaded="onFileLoaded"
         @play-original="audio.playOriginal(currentFs)"
-        @play-equalized="audio.playEqualized(currentFs, eqGains)"
-        @re-eq="onReEq"
         @save="onSave"
       />
 
@@ -44,7 +42,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useFFT } from './composables/useFFT.js'
 import { useAudio } from './composables/useAudio.js'
 import MusicPlayer from './components/MusicPlayer.vue'
@@ -54,7 +52,7 @@ const fft = useFFT()
 const audio = useAudio()
 const currentTab = ref('player')
 const currentFs = ref(44100)
-const eqGains = reactive([0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+const eqGains = ref([0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
 
 const tabs = [
   { id: 'player', label: 'Player' },
@@ -66,16 +64,8 @@ async function onFileLoaded(file) {
   if (decoded) currentFs.value = decoded.sampleRate
 }
 
-function onReEq(time) {
-  if (audio.isEQMode.value) {
-    audio.seekEQ(time, currentFs.value, [...eqGains])
-  } else {
-    audio.playBufferFrom(audio.audioBuffer.value, currentFs.value, time)
-  }
-}
-
 function onSave() {
-  const data = audio.saveWav()
+  const data = audio.exportEQ(eqGains.value, currentFs.value)
   if (!data) return
   const buf = new ArrayBuffer(44 + data.length * 2)
   const v = new DataView(buf)
