@@ -28,25 +28,17 @@
         v-if="currentTab === 'player'"
         :audio="audio"
         :gains="eqGains"
-        @update:gains="eqGains = $event"
+        @update:gains="eqGains = [...$event]"
         @file-loaded="onFileLoaded"
         @play-original="audio.playOriginal(currentFs)"
         @play-equalized="audio.playEqualized(currentFs, eqGains)"
+        @re-eq="onReEq"
         @save="onSave"
       />
 
       <!-- Synthesizer Tab -->
       <Synthesizer v-if="currentTab === 'synth'" />
 
-      <!-- Waveform Tab -->
-      <div v-if="currentTab === 'waveform'" class="w-full">
-        <div class="rounded-xl overflow-hidden border" style="border-color: var(--border-primary);">
-          <iframe src="/visualizer/waveform-visualizer.html"
-            class="w-full border-0"
-            style="height: calc(100vh - 100px); min-height: 600px;"
-            title="Waveform Visualizer"></iframe>
-        </div>
-      </div>
     </main>
   </div>
 </template>
@@ -67,12 +59,19 @@ const eqGains = reactive([0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
 const tabs = [
   { id: 'player', label: 'Player' },
   { id: 'synth', label: 'Synth' },
-  { id: 'waveform', label: 'Waveform' },
 ]
 
 async function onFileLoaded(file) {
   const decoded = await audio.loadFile(file)
   if (decoded) currentFs.value = decoded.sampleRate
+}
+
+function onReEq(time) {
+  if (audio.isEQMode.value) {
+    audio.seekEQ(time, currentFs.value, [...eqGains])
+  } else {
+    audio.playBufferFrom(audio.audioBuffer.value, currentFs.value, time)
+  }
 }
 
 function onSave() {

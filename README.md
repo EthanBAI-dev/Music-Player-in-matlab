@@ -19,7 +19,6 @@
 - [模块详解](#模块详解)
   - [Player 模块](#player-模块)
   - [Synth 模块](#synth-模块)
-  - [Waveform 可视化](#waveform-可视化)
 - [API 文档](#api-文档)
 - [主题与样式](#主题与样式)
 - [常见问题（FAQ）](#常见问题faq)
@@ -52,6 +51,9 @@
 | 频谱/EQ 叠加 | 在频谱上叠加 EQ 增益曲线（虚线），支持点击频谱定位频段 |
 | 8 段均衡器 | 62Hz ~ 16kHz 频段增益调节，点击频谱切换 Boost/Flat |
 | 播放控制 | 播放/暂停/停止，进度条拖拽跳转 |
+| **音频录制** | 麦克风录音，实时波形/频谱可视化，保存为记录文件可回放 |
+| **混响效果** | 6 种预设类型（Hall/Room/Church/Plate/Chamber/Spring）+ 时长/干湿比/早期反射量可调 |
+| **延迟效果** | 延迟时间/反馈量/干湿比可调 + BPM 同步模式，所有参数实时生效无卡顿 |
 
 ### Synth — 软件合成器
 
@@ -65,14 +67,6 @@
 | 效果器 | 混响（ConvolverNode + 程序化脉冲响应）、延迟（Feedback） |
 | 钢琴键盘 | C3~C5 共 25 键，鼠标/触屏/键盘（ASDFGHJKL 键位映射） |
 | 预设管理 | Warm Pad / Lead / Bass / Pluck / Default 5 个预设，支持保存/删除 |
-
-### Waveform — 独立示波器
-
-| 功能 | 说明 |
-|------|------|
-| 全屏示波器 | 高对比度绿色波形实时显示（retro 风格） |
-| 音频输入 | 麦克风或系统音频输入（通过 getUserMedia） |
-| 持续渲染 | requestAnimationFrame 循环，>60fps |
 
 ---
 
@@ -142,8 +136,6 @@ soniq/
 ├── DEPLOY.md                     # 部署指南
 ├── CONTRIBUTING.md               # 贡献指南
 ├── public/
-│   └── visualizer/
-│       └── waveform-visualizer.html   # 独立示波器页面
 ├── src/
 │   ├── main.js                   # Vue 应用入口
 │   ├── App.vue                   # 根组件（标签页导航 + 布局）
@@ -176,12 +168,13 @@ Player 模块由 `MusicPlayer.vue` 实现，完整的音频管线如下：
                      ↓
               AnalyserNode (FFT 分析)
                      ↓
-                ctx.destination
-                     ↓
-          +---- 波形 Canvas (getByteTimeDomainData)
-          +---- 频谱 Canvas (getByteFrequencyData)
-          +---- 粒子 Canvas (getByteFrequencyData → 音频驱动粒子系统)
+            ┌─── DryGain ───────→ ctx.destination
+            │─── ConvolverNode ─→ ReverbWetGain ─→ ctx.destination
+            └─── DelayNode ─→ FeedbackGain ─→ DelayNode ┐
+                        └──→ DelayWetGain ─→ ctx.destination  ←──┘
 ```
+
+信号链采用**永久连接 + 增益控制**方案：FX 节点在首次播放时创建一次并永久连接，通过调节干湿比增益值控制效果开/关和混合量，避免频繁 connect/disconnect 带来的音频卡顿。FX 效果与 EQ 处理（离线 FFT 均衡）互不干扰，可同时启用。
 
 **视图切换**：频谱面板右上角的 `〰` / `✦` 按钮可在频谱柱状图和粒子可视化之间切换。
 
@@ -216,10 +209,6 @@ Noise Source (Buffer → Gain) ─┘
 
 **预设系统**：5 个内置预设（Warm Pad / Lead / Bass / Pluck / Default），支持用户保存和删除自定义预设。
 
-### Waveform 可视化
-
-独立页面的示波器风格波形可视化，位于 `/visualizer/waveform-visualizer.html`。通过 `getUserMedia` 获取音频输入，使用 `AnalyserNode.getByteTimeDomainData` 实时绘制绿色波形线。
-
 ---
 
 ## API 文档
@@ -228,28 +217,44 @@ Noise Source (Buffer → Gain) ─┘
 
 ```
 返回对象:
-  audioCtx: Ref<AudioContext | null>
-  analyserNode: Ref<AnalyserNode | null>
+  audioCtx/audioBuffer: Ref
   isPlaying: Ref<boolean>
   currentTime: Ref<number>
   duration: Ref<number>
   loadedFileName: Ref<string>
 
+  // 录音
+  isRecording: Ref<boolean>
+  recordingAnalyser: Ref<AnalyserNode>
+  recordedBuffers: Ref<Array>   // { name, buffer, duration }
+
+  // 效果器
+  fxEnabled: Ref<boolean>
+  reverbType: Ref<string>       // hall|room|church|plate|chamber|spring
+  reverbTime: Ref<number>       // 0.1~10s
+  reverbMix: Ref<number>        // 0~1
+  reverbEarlyReflections: Ref<number>
+  delayTimeMs: Ref<number>      // 10~2000ms
+  delayFeedback: Ref<number>    // 0~0.9
+  delayMix: Ref<number>         // 0~1
+  delaySync: Ref<boolean>
+  bpm: Ref<number>
+
 方法:
   loadFile(file: File): Promise<void>
-    加载并解码音频文件
-
-  play(): void
-    开始播放（从当前位置）
-
-  pause(): void
-    暂停播放
-
+  playOriginal(fs): void
+  playEqualized(fs, gains): void
   stop(): void
-    停止播放（重置位置）
+  seek(time): void
+  seekEQ(time, fs, gains): void
 
-  seek(time: number): void
-    跳转到指定时间位置
+  startRecording(): Promise<void>
+  stopRecording(): void
+  loadRecorded(index): void
+
+  toggleFX(enable: boolean): void
+  applyFXParams(): void
+  updateReverbIR(): void
 ```
 
 ### `useSynth()` — 合成器引擎
