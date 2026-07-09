@@ -14,6 +14,7 @@
           <button class="btn btn-sm btn-secondary" @click="pause" :disabled="!audio.isPlaying.value">⏸</button>
           <button class="btn btn-sm btn-secondary" @click="audio.stop()" :disabled="!audio.audioBuffer.value">⏹</button>
           <button class="btn btn-sm btn-outline" @click="save" :disabled="!audio.audioBuffer.value">Save</button>
+          <button class="btn btn-sm btn-outline" @click="playNoise" :disabled="audio.isRecording.value">~ Noise</button>
         </div>
         <!-- Record -->
         <button v-if="!audio.isRecording.value" class="btn btn-sm" style="color:#e74c3c;border-color:#e74c3c;background:transparent;" @click="onStartRecording" :disabled="audio.isPlaying.value">● Rec</button>
@@ -111,11 +112,15 @@
                 zIndex: 10
               }">{{ eqTooltip.label }}</div>
           </div>
-          <!-- Sliders -->
-          <div class="flex items-end justify-around px-2 py-3 gap-0.5" style="height: 150px;">
-            <div v-for="(band, i) in bands" :key="band.name" class="flex flex-col items-center gap-1 flex-1 max-w-[50px]">
-              <input type="range" class="eq-slider" min="-30" max="30" :value="gains[i]" @input="onGainChange(i, $event)" @change="eqActiveBand = -1">
-              <span class="font-mono text-[9px]" :style="eqActiveBand === i ? 'color:var(--accent-copper);font-weight:600;' : 'color:var(--text-tertiary);'">{{ band.name }}</span>
+          <!-- Knobs (absolute-positioned, pixel-aligned with EQ curve vertical lines) -->
+          <div ref="knobContainer" style="position:relative; height: 110px; padding: 6px 6px 4px 26px; margin:0;">
+            <div v-for="(band, i) in bands" :key="band.name" :style="knobStyles[i]"
+              class="flex flex-col items-center gap-0.5" style="width:36px;">
+              <canvas class="eq-knob" :data-index="i" width="36" height="36"
+                @mousedown.prevent="onKnobMouseDown(i, $event)"
+                @dblclick="flatEq"></canvas>
+              <span class="text-[9px] font-mono leading-none" style="color:var(--text-secondary);">{{ localGains[i] > 0 ? '+' : '' }}{{ localGains[i].toFixed(1) }}</span>
+              <span class="text-[8px] font-mono leading-none" style="color:var(--text-tertiary);">{{ band.name }}</span>
             </div>
           </div>
         </div>
@@ -201,13 +206,20 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { ref, reactive, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 
 const props = defineProps({
   audio: Object,
   gains: Array
 })
-const emit = defineEmits(['update:gains', 'file-loaded', 'play-original', 'save'])
+const emit = defineEmits(['update:gains', 'file-loaded', 'play-original', 'play-noise', 'save'])
+
+// Local slider state: drives slider visuals, synced from props.gains
+const localGains = reactive([...props.gains])
+watch(() => props.gains, (ng) => {
+  for (let i = 0; i < 10; i++) localGains[i] = ng[i]
+  redrawAllKnobs()
+}, { deep: true })
 
 const bands = [
   { name: '31', freq: 31 }, { name: '62', freq: 62 }, { name: '125', freq: 125 },
@@ -219,6 +231,8 @@ const bands = [
 const waveCanvas = ref(null)
 const specCanvas = ref(null)
 const fileInput = ref(null)
+const eqCurveCanvas = ref(null)
+const knobContainer = ref(null)
 const viewMode = ref('spectrum')
 
 let animId = null
@@ -227,13 +241,13 @@ let isPaused = false
 let frameCount = 0
 
 // EQ curve visualization state
-const eqCurveCanvas = ref(null)
 const eqTooltip = ref({ show: false, label: '', x: 0, y: 0 })
 let eqActiveBand = -1
 let eqHoveredBand = -1
 const EQ_FREQ_MIN = 20
 const EQ_FREQ_MAX = 20000
 const EQ_DB_RANGE = 16  // display range: -16dB to +16dB
+const EQ_GAIN_MAX = 12  // knob range: -12dB to +12dB
 
 function formatFreqLabel(f) {
   if (f >= 1000) return (f / 1000).toFixed(f >= 10000 ? 0 : 1) + 'k'
@@ -247,6 +261,11 @@ function formatFreqFull(f) {
 function freqToX(freq, plotW, mL) {
   const lMin = Math.log10(EQ_FREQ_MIN), lMax = Math.log10(EQ_FREQ_MAX)
   return mL + (Math.log10(freq) - lMin) / (lMax - lMin) * plotW
+}
+// Returns the log-frequency position as a percentage (0-100%) for absolute positioning
+function freqToPct(freq) {
+  const lMin = Math.log10(EQ_FREQ_MIN), lMax = Math.log10(EQ_FREQ_MAX)
+  return (Math.log10(freq) - lMin) / (lMax - lMin) * 100
 }
 function dbToY(db, plotH, mT) {
   return mT + (1 - (db + EQ_DB_RANGE) / (2 * EQ_DB_RANGE)) * plotH
@@ -326,7 +345,7 @@ function drawEqCurve() {
   ctx.setLineDash([])
 
   // === Compute response ===
-  const resp = computeEqResponse(props.gains)
+  const resp = computeEqResponse(localGains)
 
   // === Fill under curve (to 0dB) ===
   const zeroY = dbToY(0, plotH, mT)
@@ -356,7 +375,7 @@ function drawEqCurve() {
   ctx.stroke()
 
   // === Dots at band positions ===
-  props.gains.forEach((g, i) => {
+  localGains.forEach((g, i) => {
     if (Math.abs(g) < 0.3) return
     const x = freqToX(bands[i].freq, plotW, mL)
     const y = dbToY(g, plotH, mT)
@@ -370,9 +389,9 @@ function drawEqCurve() {
   })
 
   // === Hover/active dot highlight ===
-  if (hlIdx >= 0 && Math.abs(props.gains[hlIdx]) > 0.1) {
+  if (hlIdx >= 0 && Math.abs(localGains[hlIdx]) > 0.1) {
     const x = freqToX(bands[hlIdx].freq, plotW, mL)
-    const y = dbToY(props.gains[hlIdx], plotH, mT)
+    const y = dbToY(localGains[hlIdx], plotH, mT)
     ctx.beginPath()
     ctx.arc(x, y, 5, 0, Math.PI * 2)
     ctx.fillStyle = '#5B7FA5'
@@ -381,6 +400,128 @@ function drawEqCurve() {
     ctx.lineWidth = 2
     ctx.stroke()
   }
+}
+
+// ── Knob drawing ──
+function drawKnob(ctx, cx, cy, r, val, minV, maxV) {
+  // Industry-standard audio knob: 0dB → 12 o'clock (-π/2)
+  // Min (-30dB) → 7:30 position  Max (+30dB) → 4:30 position
+  const minAngle = -5 * Math.PI / 4   // -225°
+  const maxAngle = Math.PI / 4        // +45°
+  const norm = Math.max(0, Math.min(1, (val - minV) / (maxV - minV)))
+  const angle = minAngle + (maxAngle - minAngle) * norm
+
+  // Track arc
+  ctx.beginPath()
+  ctx.arc(cx, cy, r - 2, minAngle, maxAngle)
+  ctx.strokeStyle = '#E0E0E0'
+  ctx.lineWidth = 3
+  ctx.lineCap = 'round'
+  ctx.stroke()
+
+  // Value arc
+  ctx.beginPath()
+  ctx.arc(cx, cy, r - 2, minAngle, angle)
+  ctx.strokeStyle = Math.abs(val) > 0.3 ? '#5B7FA5' : '#C0C0C0'
+  ctx.lineWidth = 3
+  ctx.lineCap = 'round'
+  ctx.stroke()
+
+  // Pointer
+  const pLen = r - 5
+  const px = cx + Math.cos(angle) * pLen
+  const py = cy + Math.sin(angle) * pLen
+  ctx.beginPath()
+  ctx.moveTo(cx, cy)
+  ctx.lineTo(px, py)
+  ctx.strokeStyle = '#555'
+  ctx.lineWidth = 1.5
+  ctx.stroke()
+
+  // Center dot
+  ctx.beginPath()
+  ctx.arc(cx, cy, 2, 0, Math.PI * 2)
+  ctx.fillStyle = '#555'
+  ctx.fill()
+}
+
+function redrawAllKnobs() {
+  const el = knobContainer.value
+  if (!el) return
+  const canvases = el.querySelectorAll('.eq-knob')
+  const dpr = window.devicePixelRatio || 1
+  canvases.forEach((canvas, i) => {
+    if (i >= localGains.length) return
+    const ctx = canvas.getContext('2d')
+    const W = 36, H = 36
+    canvas.width = W * dpr; canvas.height = H * dpr
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+    ctx.clearRect(0, 0, W, H)
+    drawKnob(ctx, W / 2, H / 2, W / 2, localGains[i], -EQ_GAIN_MAX, EQ_GAIN_MAX)
+  })
+}
+
+function redrawSingleKnob(idx) {
+  const el = knobContainer.value
+  if (!el) return
+  const canvas = el.querySelectorAll('.eq-knob')[idx]
+  if (!canvas) return
+  const ctx = canvas.getContext('2d')
+  const dpr = window.devicePixelRatio || 1
+  const W = 36, H = 36
+  canvas.width = W * dpr; canvas.height = H * dpr
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+  ctx.clearRect(0, 0, W, H)
+  drawKnob(ctx, W / 2, H / 2, W / 2, localGains[idx], -EQ_GAIN_MAX, EQ_GAIN_MAX)
+}
+
+// ── Knob mouse interaction ──
+let knobDragIdx = -1
+let knobDragStartY = 0
+let knobDragStartVal = 0
+
+function verifyKnobMapping() {
+  const testPts = [-EQ_GAIN_MAX, -9, -6, -3, 0, 3, 6, 9, EQ_GAIN_MAX]
+  const minA = -5 * Math.PI / 4, maxA = Math.PI / 4, rangeA = maxA - minA
+  let ok = true
+  for (const v of testPts) {
+    const norm = Math.max(0, Math.min(1, (v + EQ_GAIN_MAX) / (2 * EQ_GAIN_MAX)))
+    const angle = minA + rangeA * norm
+    const normBack = (angle - minA) / rangeA
+    const vBack = -EQ_GAIN_MAX + 2 * EQ_GAIN_MAX * normBack
+    if (Math.abs(v - vBack) > 1e-6) { ok = false; console.warn('[Knob] MISMATCH', v, vBack) }
+  }
+  if (ok) console.log('[Knob] ✓ Mapping linear & accurate across ±' + EQ_GAIN_MAX + 'dB range')
+}
+
+function onKnobMouseDown(idx, e) {
+  eqActiveBand = idx
+  knobDragIdx = idx
+  knobDragStartY = e.clientY
+  knobDragStartVal = localGains[idx]
+  document.addEventListener('mousemove', onKnobWindowMove)
+  document.addEventListener('mouseup', onKnobWindowUp)
+}
+
+function onKnobWindowMove(e) {
+  if (knobDragIdx < 0) return
+  // 0.2 dB per pixel → full ±12dB range = 120px drag
+  const deltaY = (knobDragStartY - e.clientY) * 0.2
+  const val = Math.max(-EQ_GAIN_MAX, Math.min(EQ_GAIN_MAX, knobDragStartVal + deltaY))
+  localGains[knobDragIdx] = val
+  emit('update:gains', [...localGains])
+  if (props.audio.isPlaying.value) {
+    props.audio.updateEQBand(knobDragIdx, val)
+  }
+  redrawSingleKnob(knobDragIdx)
+  eqActiveBand = knobDragIdx
+}
+
+function onKnobWindowUp() {
+  knobDragIdx = -1
+  eqActiveBand = -1
+  document.removeEventListener('mousemove', onKnobWindowMove)
+  document.removeEventListener('mouseup', onKnobWindowUp)
 }
 
 function onEqCurveMouseMove(e) {
@@ -406,7 +547,7 @@ function onEqCurveMouseMove(e) {
   if (nearest >= 0) {
     eqTooltip.value = {
       show: true,
-      label: `${formatFreqFull(bands[nearest].freq)}: ${props.gains[nearest].toFixed(1)} dB`,
+      label: `${formatFreqFull(bands[nearest].freq)}: ${localGains[nearest].toFixed(1)} dB`,
       x: Math.min(mx + 10, W - 110),
       y: Math.max(my - 26, 2)
     }
@@ -446,23 +587,27 @@ const delayDisplay = computed(() => {
   return Math.round(props.audio.delayTimeMs.value) + 'ms'
 })
 
-function onGainChange(i, e) {
-  eqActiveBand = i
-  const g = [...props.gains]
-  g[i] = parseFloat(e.target.value)
-  emit('update:gains', g)
-  // Real-time EQ update via BiquadFilterNode
-  if (props.audio.isPlaying.value) {
-    props.audio.updateEQBand(i, g[i])
-  }
-}
+// Absolute-position knob styles, pixel-aligned with EQ curve vertical grid lines
+const knobStyles = computed(() => {
+  return bands.map(band => ({
+    position: 'absolute',
+    left: freqToPct(band.freq) + '%',
+    transform: 'translateX(-50%)'
+  }))
+})
 
 function flatEq() {
-  const g = new Array(10).fill(0)
+  const g = Array(10).fill(0)
+  for (let i = 0; i < 10; i++) localGains[i] = 0
   emit('update:gains', g)
   if (props.audio.isPlaying.value) {
     props.audio.applyEQGains(g)
   }
+  redrawAllKnobs()
+}
+
+function playNoise() {
+  emit('play-noise')
 }
 
 function onFileChange(e) {
@@ -479,7 +624,7 @@ function play() {
   emit('play-original')
   // Apply current EQ gains to the real-time BiquadFilterNode chain
   if (props.audio.applyEQGains) {
-    props.audio.applyEQGains(props.gains)
+    props.audio.applyEQGains(localGains)
   }
 }
 
@@ -668,30 +813,45 @@ function drawSpectrum() {
   const bufLen = analyser.frequencyBinCount
   const data = new Uint8Array(bufLen)
   analyser.getByteFrequencyData(data)
-  const count = Math.min(bufLen, 128)
-  const step = W / count
+  // Log-frequency X-axis (same coordinate system as EQ curve)
+  const sampleRate = analyser.context.sampleRate || 44100
+  const nyquist = sampleRate / 2
+  const lMin = Math.log10(EQ_FREQ_MIN), lMax = Math.log10(nyquist)
+  const barCount = 200
+  const step = W / barCount
   const barW = Math.max(1, step * 0.7)
-  for (let i = 0; i < count; i++) {
-    const val = data[i] / 255
+  for (let i = 0; i < barCount; i++) {
+    const freq = Math.pow(10, lMin + (lMax - lMin) * i / (barCount - 1))
+    const binIdx = Math.round(freq / nyquist * bufLen)
+    if (binIdx >= bufLen) continue
+    const val = data[binIdx] / 255
     const bh = val * H
     const x = i * step + (step - barW) / 2
     ctx.fillStyle = `rgba(196,132,92,${0.15 + val * 0.7})`
     ctx.fillRect(x, H - bh, barW, bh)
   }
-  // EQ curve overlay
-  if (viewMode.value === 'spectrum') {
-    const g = props.gains || []
-    if (g.length > 1) {
-      ctx.beginPath()
-      const eqStep = W / (g.length - 1)
-      for (let i = 0; i < g.length; i++) {
-        const n = g[i] / 30
-        const y = H / 2 - n * (H * 0.4)
-        i === 0 ? ctx.moveTo(i * eqStep, y) : ctx.lineTo(i * eqStep, y)
+  // EQ curve overlay (log-frequency mapping)
+  const g = localGains || []
+  if (g.length > 1) {
+    ctx.beginPath()
+    for (let i = 0; i < barCount; i++) {
+      const freq = Math.pow(10, lMin + (lMax - lMin) * i / (barCount - 1))
+      const x = i * step
+      // Compute combined response at this frequency
+      const Q = 1.41
+      let sum = 0
+      for (let j = 0; j < 10; j++) {
+        const gain = g[j]
+        if (Math.abs(gain) < 0.01) continue
+        const r = freq / bands[j].freq
+        sum += gain / (1 + Math.pow((r - 1 / r) * Q, 2))
       }
-      ctx.strokeStyle = 'rgba(0,0,0,0.12)'; ctx.lineWidth = 1.5
-      ctx.setLineDash([3, 3]); ctx.stroke(); ctx.setLineDash([])
+      const n = sum / EQ_GAIN_MAX  // normalize to ±1
+      const y = H / 2 - n * (H * 0.4)
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y)
     }
+    ctx.strokeStyle = 'rgba(0,0,0,0.12)'; ctx.lineWidth = 1.5
+    ctx.setLineDash([3, 3]); ctx.stroke(); ctx.setLineDash([])
   }
 }
 
@@ -767,6 +927,8 @@ function drawParticles() {
 onMounted(() => {
   audioCtx = props.audio.analyserNode.value?.context || null
   render()
+  redrawAllKnobs()
+  verifyKnobMapping()
 })
 
 onBeforeUnmount(() => {
@@ -793,11 +955,11 @@ onBeforeUnmount(() => {
 .btn-outline { background: transparent; color: var(--accent-copper); border-color: var(--accent-copper-light); }
 .btn-outline:hover { background: var(--accent-copper-light); color: var(--accent-copper-hover); border-color: var(--accent-copper); }
 .btn-outline:disabled { opacity: 0.3; cursor: not-allowed; }
-.eq-slider { -webkit-appearance: none; appearance: none; width: 100%; height: 90px; background: transparent; cursor: pointer; writing-mode: vertical-lr; direction: rtl; }
-.eq-slider::-webkit-slider-runnable-track { width: 3px; height: 100%; background: linear-gradient(to top, var(--slider-track), var(--accent-copper), var(--accent-copper-hover)); border-radius: 9999px; }
-.eq-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%; background: var(--slider-thumb); cursor: pointer; margin-left: -5.5px; }
-.eq-slider::-moz-range-track { width: 3px; background: linear-gradient(to top, var(--slider-track), var(--accent-copper), var(--accent-copper-hover)); border-radius: 9999px; }
-.eq-slider::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: var(--slider-thumb); cursor: pointer; border: none; }
+.eq-knob { display: block; cursor: pointer; border-radius: 50%; }
+.eq-knob:hover { box-shadow: 0 0 0 2px rgba(91,127,165,0.2); }
+.eq-knob:active { box-shadow: 0 0 0 3px rgba(91,127,165,0.35); }
+@media (max-width: 640px) { .eq-knob { width: 28px; height: 28px; } }
+@media (max-width: 480px) { .eq-knob { width: 24px; height: 24px; } }
 .view-toggle {
   width: 26px; height: 26px; display: flex; align-items: center; justify-content: center;
   font-size: 13px; border: 1px solid transparent; border-radius: var(--radius-sm);

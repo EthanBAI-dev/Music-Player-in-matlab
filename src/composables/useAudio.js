@@ -315,6 +315,27 @@ export function useAudio() {
     status.value = 'Playing'
   }
 
+  function playNoise() {
+    stop()
+    const ctx = getCtx()
+    // Ensure context is running (needed if context was created from non-gesture path)
+    if (ctx.state === 'suspended') ctx.resume()
+    const fs = ctx.sampleRate
+    const dur = 15  // seconds of noise
+    const length = fs * dur
+    const buffer = ctx.createBuffer(1, length, fs)
+    const data = buffer.getChannelData(0)
+    for (let i = 0; i < length; i++) {
+      data[i] = Math.random() * 2 - 1
+    }
+    audioBuffer.value = buffer
+    loadedFileName.value = 'White Noise'
+    duration.value = dur
+    playBufferFrom(buffer, fs, 0)
+    status.value = 'White Noise'
+    console.log('[Noise] White noise playing, isPlaying=', isPlaying.value, 'ctx.state=', ctx.state)
+  }
+
   function stop() {
     if (audioSource.value) {
       try { audioSource.value.stop() } catch (_) { /* ignore */ }
@@ -399,7 +420,7 @@ export function useAudio() {
     audioBuffer, loadedFileName, isPlaying,
     status, analyserNode, currentTime, duration,
     isRecording, recordingAnalyser, recordedBuffers,
-    loadFile, playOriginal, playBufferFrom, stop, seek, setStatus,
+    loadFile, playOriginal, playNoise, playBufferFrom, stop, seek, setStatus,
     startRecording, stopRecording, loadRecorded,
     // Real-time EQ
     updateEQBand, applyEQGains, exportEQ,

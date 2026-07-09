@@ -31,6 +31,7 @@
         @update:gains="eqGains.value = $event"
         @file-loaded="onFileLoaded"
         @play-original="audio.playOriginal(currentFs)"
+        @play-noise="audio.playNoise()"
         @save="onSave"
       />
 
