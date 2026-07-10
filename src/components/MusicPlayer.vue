@@ -1,54 +1,70 @@
 <template>
-  <div class="flex flex-col gap-3 select-none" style="min-height: calc(100vh - 120px);">
-    <!-- Row 1: Transport + Waveform -->
-    <div class="grid grid-cols-1 sm:grid-cols-[auto_1fr] gap-3">
+  <div class="flex flex-col gap-2 select-none">
+    <!-- Row 1: Transport + Waveform + Spectrum -->
+    <div class="grid grid-cols-1 sm:grid-cols-[auto_1fr_1fr] gap-2" style="min-height: 150px;">
       <!-- Left: Transport Controls -->
-      <div class="flex flex-col gap-2 px-3 py-3 rounded-xl border min-w-[160px]" style="background: var(--bg-secondary); border-color: var(--border-primary); box-shadow: var(--shadow-sm);">
+      <div class="flex flex-col gap-1.5 px-2.5 py-2 rounded-xl border min-w-[140px]" style="background: var(--bg-secondary); border-color: var(--border-primary); box-shadow: var(--shadow-sm);">
         <!-- Buttons -->
         <div class="flex flex-wrap gap-1">
           <div class="file-input-wrap">
-            <button class="btn btn-sm btn-secondary" @click="$refs.fileInput.click()">Load</button>
+            <button class="btn-tiny btn-secondary" @click="$refs.fileInput.click()">Load</button>
             <input ref="fileInput" type="file" accept="audio/*" style="display:none" @change="onFileChange">
           </div>
-          <button class="btn btn-sm btn-primary" @click="play" :disabled="!audio.audioBuffer.value || audio.isRecording.value">▶</button>
-          <button class="btn btn-sm btn-secondary" @click="pause" :disabled="!audio.isPlaying.value">⏸</button>
-          <button class="btn btn-sm btn-secondary" @click="audio.stop()" :disabled="!audio.audioBuffer.value">⏹</button>
-          <button class="btn btn-sm btn-outline" @click="save" :disabled="!audio.audioBuffer.value">Save</button>
-          <button class="btn btn-sm btn-outline" @click="playNoise" :disabled="audio.isRecording.value">~ Noise</button>
+          <button class="btn-tiny btn-primary" @click="play" :disabled="!audio.audioBuffer.value || audio.isRecording.value">▶</button>
+          <button class="btn-tiny btn-secondary" @click="pause" :disabled="!audio.isPlaying.value">⏸</button>
+          <button class="btn-tiny btn-secondary" @click="audio.stop()" :disabled="!audio.audioBuffer.value">⏹</button>
+          <button class="btn-tiny btn-outline" @click="save" :disabled="!audio.audioBuffer.value">Save</button>
+          <button class="btn-tiny btn-outline" @click="playNoise" :disabled="audio.isRecording.value">~Noise</button>
         </div>
         <!-- Record -->
-        <button v-if="!audio.isRecording.value" class="btn btn-sm" style="color:#e74c3c;border-color:#e74c3c;background:transparent;" @click="onStartRecording" :disabled="audio.isPlaying.value">● Rec</button>
-        <button v-else class="btn btn-sm" style="color:#fff;background:#e74c3c;border-color:#e74c3c;animation:pulse 1s infinite;" @click="onStopRecording">■ Stop</button>
+        <button v-if="!audio.isRecording.value" class="btn-tiny" style="color:#e74c3c;border-color:#e74c3c;background:transparent;padding:1px 8px;" @click="onStartRecording" :disabled="audio.isPlaying.value">● Rec</button>
+        <button v-else class="btn-tiny" style="color:#fff;background:#e74c3c;border-color:#e74c3c;animation:pulse 1s infinite;padding:1px 8px;" @click="onStopRecording">■ Stop</button>
         <!-- Info -->
-        <span v-if="audio.loadedFileName.value" class="text-xs font-mono truncate" style="color: var(--text-secondary);">{{ audio.loadedFileName.value }}</span>
-        <span class="text-xs font-mono" style="color: var(--text-secondary);">{{ timeStr }}</span>
+        <span v-if="audio.loadedFileName.value" class="text-[10px] font-mono truncate" style="color: var(--text-secondary);">{{ audio.loadedFileName.value }}</span>
+        <span class="text-[10px] font-mono" style="color: var(--text-secondary);">{{ timeStr }}</span>
         <!-- Recorded Files -->
         <div v-if="audio.recordedBuffers.value.length > 0" class="flex flex-wrap gap-1">
-          <span class="text-[10px] font-semibold w-full" style="color: var(--text-secondary);">Recorded:</span>
+          <span class="text-[9px] font-semibold w-full" style="color: var(--text-secondary);">Recorded:</span>
           <button
             v-for="(rec, i) in audio.recordedBuffers.value"
             :key="i"
-            class="text-xs px-2 py-1 rounded font-mono"
+            class="text-[9px] px-1.5 py-0.5 rounded font-mono"
             :class="{ 'font-bold': audio.loadedFileName.value === rec.name }"
             :style="audio.loadedFileName.value === rec.name ? 'background:var(--accent-copper-light);color:var(--accent-copper);border:1px solid var(--accent-copper);' : 'background:var(--bg-tertiary);color:var(--text-secondary);border:1px solid var(--border-secondary);'"
             @click="audio.loadRecorded(i)">{{ rec.name }}</button>
         </div>
       </div>
 
-      <!-- Right: Waveform -->
+      <!-- Middle: Waveform -->
       <div class="rounded-xl border overflow-hidden flex flex-col" style="background: var(--bg-secondary); border-color: var(--border-primary); box-shadow: var(--shadow-xs);">
-        <div class="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider" style="color: var(--text-secondary); border-bottom: 1px solid var(--border-secondary);">
+        <div class="px-2.5 py-1 text-[9px] font-semibold uppercase tracking-wider" style="color: var(--text-secondary); border-bottom: 1px solid var(--border-secondary);">
           {{ audio.isRecording.value ? 'Recording Waveform' : 'Waveform' }}
         </div>
-        <div class="flex-1 relative" style="min-height: 200px;">
+        <div class="flex-1 relative" style="min-height: 100px;">
           <canvas ref="waveCanvas" class="absolute inset-0 w-full h-full"></canvas>
+        </div>
+      </div>
+
+      <!-- Right: Spectrum + Particle -->
+      <div class="rounded-xl border overflow-hidden flex flex-col" style="background: var(--bg-secondary); border-color: var(--border-primary); box-shadow: var(--shadow-xs);">
+        <div class="px-2.5 py-1 flex items-center justify-between" style="border-bottom: 1px solid var(--border-secondary);">
+          <span class="text-[9px] font-semibold uppercase tracking-wider" style="color: var(--text-secondary);">
+            {{ audio.isRecording.value ? 'Recording Spectrum' : (viewMode === 'spectrum' ? 'Spectrum' : 'Particles') }}
+          </span>
+          <div v-if="!audio.isRecording.value" class="flex gap-0.5">
+            <button class="view-toggle" :class="{ active: viewMode === 'spectrum' }" @click="viewMode = 'spectrum'" title="频谱视图">〰</button>
+            <button class="view-toggle" :class="{ active: viewMode === 'particles' }" @click="viewMode = 'particles'" title="粒子视图">✦</button>
+          </div>
+        </div>
+        <div class="flex-1 relative" style="min-height: 100px;">
+          <canvas ref="specCanvas" class="absolute inset-0 w-full h-full" @click="onSpecClick"></canvas>
         </div>
       </div>
     </div>
 
     <!-- Progress Bar -->
     <div
-      class="relative h-6 cursor-pointer rounded group"
+      class="relative h-5 cursor-pointer rounded group"
       style="background: var(--bg-tertiary);"
       @mousedown="onSeekStart"
     >
@@ -57,149 +73,138 @@
         :style="`width: ${progressPct}%; background: var(--accent-copper); opacity: 0.25;`"
       ></div>
       <div
-        class="absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-        :style="`left: calc(${progressPct}% - 6px); background: var(--accent-copper); box-shadow: 0 0 6px rgba(196,132,92,0.5);`"
+        class="absolute top-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+        :style="`left: calc(${progressPct}% - 5px); background: var(--accent-copper); box-shadow: 0 0 4px rgba(196,132,92,0.5);`"
       ></div>
     </div>
 
-    <!-- Row 2: Spectrum + EQ & FX -->
-    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 flex-1 min-h-0" style="min-height: 300px;">
-      <!-- Left: Spectrum + Particle -->
+    <!-- Row 2: EQ + FX (side by side) -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2" style="min-height: 200px;">
+      <!-- EQ Panel -->
       <div class="rounded-xl border overflow-hidden flex flex-col" style="background: var(--bg-secondary); border-color: var(--border-primary); box-shadow: var(--shadow-xs);">
-        <div class="px-3 py-1.5 flex items-center justify-between" style="border-bottom: 1px solid var(--border-secondary);">
-          <span class="text-[10px] font-semibold uppercase tracking-wider" style="color: var(--text-secondary);">
-            {{ audio.isRecording.value ? 'Recording Spectrum' : (viewMode === 'spectrum' ? 'Spectrum' : 'Particles') }}
-          </span>
-          <div v-if="!audio.isRecording.value" class="flex gap-1">
-            <button
-              class="view-toggle"
-              :class="{ active: viewMode === 'spectrum' }"
-              @click="viewMode = 'spectrum'"
-              title="频谱视图">〰</button>
-            <button
-              class="view-toggle"
-              :class="{ active: viewMode === 'particles' }"
-              @click="viewMode = 'particles'"
-              title="粒子视图">✦</button>
+        <div class="flex items-center justify-between px-2.5 py-1 border-b" style="border-color: var(--border-secondary);">
+          <span class="text-[9px] font-semibold uppercase tracking-wider" style="color: var(--text-secondary);">Equalizer</span>
+          <div class="flex gap-2 items-center">
+            <span v-if="gains.some(g => Math.abs(g) > 0.1)" class="text-[8px] font-mono" style="color: var(--accent-copper);">EQ ON</span>
+            <button class="text-[9px] px-1.5 py-0.5 rounded font-medium" style="background: var(--accent-copper-light); color: var(--accent-copper);" @click="flatEq">Flat</button>
           </div>
         </div>
-        <div class="flex-1 relative" style="min-height: 200px;">
-          <canvas ref="specCanvas" class="absolute inset-0 w-full h-full" @click="onSpecClick"></canvas>
+        <!-- Frequency Response Curve -->
+        <div class="relative border-b flex-shrink-0" style="border-color: var(--border-secondary);">
+          <canvas ref="eqCurveCanvas" class="w-full" style="height: 110px; cursor: crosshair;" @mousemove="onEqCurveMouseMove" @mouseleave="onEqCurveMouseLeave"></canvas>
+          <div v-if="eqTooltip.show"
+            class="absolute pointer-events-none text-[8px] font-mono px-1 py-0.5 rounded whitespace-nowrap"
+            :style="{
+              left: eqTooltip.x + 'px', top: eqTooltip.y + 'px',
+              background: 'var(--bg-primary)', color: 'var(--text-primary)',
+              border: '1px solid var(--border-secondary)',
+              boxShadow: '0 1px 4px rgba(0,0,0,0.1)',
+              zIndex: 10
+            }">{{ eqTooltip.label }}</div>
+        </div>
+        <!-- Knobs -->
+        <div ref="knobContainer" style="position:relative; height: 100px; padding: 4px 4px 2px 22px; margin:0; flex-shrink:0;">
+          <div v-for="(band, i) in bands" :key="band.name" :style="knobStyles[i]"
+            class="flex flex-col items-center gap-0.5" style="width:32px;">
+            <canvas class="eq-knob" :data-index="i" width="32" height="32"
+              @mousedown.prevent="onKnobMouseDown(i, $event)"
+              @dblclick="flatEq"></canvas>
+            <span class="text-[8px] font-mono leading-none" style="color:var(--text-secondary);">{{ localGains[i] > 0 ? '+' : '' }}{{ localGains[i].toFixed(1) }}</span>
+            <span class="text-[7px] font-mono leading-none" style="color:var(--text-tertiary);">{{ band.name }}</span>
+          </div>
         </div>
       </div>
 
-      <!-- Right: EQ + FX (stacked) -->
-      <div class="flex flex-col gap-3 overflow-y-auto">
-        <!-- EQ Panel -->
-        <div class="rounded-xl border overflow-hidden flex-shrink-0" style="background: var(--bg-secondary); border-color: var(--border-primary); box-shadow: var(--shadow-xs);">
-          <div class="flex items-center justify-between px-3 py-1.5 border-b" style="border-color: var(--border-secondary);">
-            <span class="text-[10px] font-semibold uppercase tracking-wider" style="color: var(--text-secondary);">Equalizer</span>
-            <div class="flex gap-2 items-center">
-              <span v-if="gains.some(g => Math.abs(g) > 0.1)" class="text-[9px] font-mono" style="color: var(--accent-copper);">EQ ON</span>
-              <button class="text-[10px] px-2 py-0.5 rounded font-medium" style="background: var(--accent-copper-light); color: var(--accent-copper);" @click="flatEq">Flat</button>
-            </div>
-          </div>
-          <!-- Frequency Response Curve -->
-          <div class="relative border-b" style="border-color: var(--border-secondary);">
-            <canvas ref="eqCurveCanvas" class="w-full" style="height: 130px; cursor: crosshair;" @mousemove="onEqCurveMouseMove" @mouseleave="onEqCurveMouseLeave"></canvas>
-            <div v-if="eqTooltip.show"
-              class="absolute pointer-events-none text-[9px] font-mono px-1.5 py-0.5 rounded whitespace-nowrap"
-              :style="{
-                left: eqTooltip.x + 'px', top: eqTooltip.y + 'px',
-                background: 'var(--bg-primary)', color: 'var(--text-primary)',
-                border: '1px solid var(--border-secondary)',
-                boxShadow: '0 1px 4px rgba(0,0,0,0.1)',
-                zIndex: 10
-              }">{{ eqTooltip.label }}</div>
-          </div>
-          <!-- Knobs (absolute-positioned, pixel-aligned with EQ curve vertical lines) -->
-          <div ref="knobContainer" style="position:relative; height: 110px; padding: 6px 6px 4px 26px; margin:0;">
-            <div v-for="(band, i) in bands" :key="band.name" :style="knobStyles[i]"
-              class="flex flex-col items-center gap-0.5" style="width:36px;">
-              <canvas class="eq-knob" :data-index="i" width="36" height="36"
-                @mousedown.prevent="onKnobMouseDown(i, $event)"
-                @dblclick="flatEq"></canvas>
-              <span class="text-[9px] font-mono leading-none" style="color:var(--text-secondary);">{{ localGains[i] > 0 ? '+' : '' }}{{ localGains[i].toFixed(1) }}</span>
-              <span class="text-[8px] font-mono leading-none" style="color:var(--text-tertiary);">{{ band.name }}</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- FX Panel -->
-        <div class="rounded-xl border overflow-hidden flex-shrink-0" style="background: var(--bg-secondary); border-color: var(--border-primary); box-shadow: var(--shadow-xs);">
-          <div class="flex items-center justify-between px-3 py-1.5 border-b" style="border-color: var(--border-secondary);">
-            <span class="text-[10px] font-semibold uppercase tracking-wider" style="color: var(--text-secondary);">Effects</span>
+      <!-- FX Panel -->
+      <div class="rounded-xl border overflow-hidden flex flex-col" style="background: var(--bg-secondary); border-color: var(--border-primary); box-shadow: var(--shadow-xs);">
+        <div class="flex items-center justify-between px-2.5 py-1 border-b" style="border-color: var(--border-secondary);">
+          <span class="text-[9px] font-semibold uppercase tracking-wider" style="color: var(--text-secondary);">Effects</span>
+          <div class="flex gap-1">
             <button
-              class="text-[10px] px-2 py-0.5 rounded font-medium"
-              :style="audio.fxEnabled.value ? 'background:var(--accent-copper-light);color:var(--accent-copper);border:1px solid var(--accent-copper);' : 'background:var(--bg-tertiary);color:var(--text-tertiary);border:1px solid var(--border-secondary);'"
-              @click="toggleFX"
-            >{{ audio.fxEnabled.value ? 'FX ON' : 'FX OFF' }}</button>
-          </div>
-          <div class="px-3 py-2 space-y-3">
-            <!-- Reverb Section -->
-            <div>
-              <div class="flex items-center justify-between mb-1">
-                <span class="text-[9px] font-semibold uppercase tracking-wider" style="color: var(--text-secondary);">Reverb</span>
-                <select v-model="audio.reverbType.value" @change="onReverbTypeChange" class="text-[10px] font-mono px-1.5 py-0.5 rounded border-0" style="background: var(--bg-tertiary); color: var(--text-primary); outline: none;">
-                  <option value="hall">Hall</option>
-                  <option value="room">Room</option>
-                  <option value="church">Church</option>
-                  <option value="plate">Plate</option>
-                  <option value="chamber">Chamber</option>
-                  <option value="spring">Spring</option>
-                </select>
-              </div>
-              <div class="flex items-center gap-2 mb-1">
-                 <span class="text-[9px] font-mono w-8 flex-shrink-0" style="color: var(--text-tertiary);">Time</span>
-                 <input type="range" class="fx-slider flex-1" min="0.1" max="10" step="0.1" :value="audio.reverbTime.value" @input="onReverbTimeChange">
-                 <span class="text-[9px] font-mono w-12 text-right flex-shrink-0" style="color: var(--text-secondary);">{{ audio.reverbTime.value.toFixed(1) }}s</span>
-               </div>
-               <div class="flex items-center gap-2 mb-1">
-                 <span class="text-[9px] font-mono w-8 flex-shrink-0" style="color: var(--text-tertiary);">Mix</span>
-                 <input type="range" class="fx-slider flex-1" min="0" max="1" step="0.01" :value="audio.reverbMix.value" @input="onReverbMixChange">
-                 <span class="text-[9px] font-mono w-12 text-right flex-shrink-0" style="color: var(--text-secondary);">{{ Math.round(audio.reverbMix.value * 100) }}%</span>
-               </div>
-               <div class="flex items-center gap-2 mb-1">
-                 <span class="text-[9px] font-mono w-8 flex-shrink-0" style="color: var(--text-tertiary);">Early</span>
-                 <input type="range" class="fx-slider flex-1" min="0" max="1" step="0.01" :value="audio.reverbEarlyReflections.value" @input="onReverbEarlyChange">
-                 <span class="text-[9px] font-mono w-12 text-right flex-shrink-0" style="color: var(--text-secondary);">{{ Math.round(audio.reverbEarlyReflections.value * 100) }}%</span>
-               </div>
-            </div>
-            <!-- Divider -->
-            <div style="border-top: 1px solid var(--border-secondary);"></div>
-            <!-- Delay Section -->
-            <div>
-              <div class="flex items-center justify-between mb-1">
-                <span class="text-[9px] font-semibold uppercase tracking-wider" style="color: var(--text-secondary);">Delay</span>
-                <button
-                  class="text-[9px] px-1.5 py-0.5 rounded font-mono"
-                  :style="audio.delaySync.value ? 'background:var(--accent-copper-light);color:var(--accent-copper);' : 'background:var(--bg-tertiary);color:var(--text-tertiary);'"
-                  @click="toggleDelaySync"
-                >{{ audio.delaySync.value ? 'BPM' : 'ms' }}</button>
-              </div>
-              <div v-if="!audio.delaySync.value" class="flex items-center gap-2 mb-1">
-                 <span class="text-[9px] font-mono w-8 flex-shrink-0" style="color: var(--text-tertiary);">Time</span>
-                 <input type="range" class="fx-slider flex-1" min="10" max="2000" step="1" :value="audio.delayTimeMs.value" @input="onDelayTimeChange">
-                 <span class="text-[9px] font-mono w-12 text-right flex-shrink-0" style="color: var(--text-secondary);">{{ Math.round(audio.delayTimeMs.value) }}ms</span>
-               </div>
-              <div v-if="audio.delaySync.value" class="flex items-center gap-2 mb-1">
-                 <span class="text-[9px] font-mono" style="color: var(--text-tertiary);">BPM</span>
-                 <input type="number" class="flex-1 text-[10px] font-mono px-1.5 py-0.5 rounded border-0 text-center" style="background: var(--bg-tertiary); color: var(--text-primary); outline: none;" :value="audio.bpm.value" min="20" max="300" @change="onBpmChange" />
-                 <span class="text-[9px] font-mono w-14 text-right" style="color: var(--text-secondary);">{{ delayDisplay }}</span>
-               </div>
-              <div class="flex items-center gap-2 mb-1">
-                 <span class="text-[9px] font-mono w-8 flex-shrink-0" style="color: var(--text-tertiary);">Feed</span>
-                 <input type="range" class="fx-slider flex-1" min="0" max="0.9" step="0.01" :value="audio.delayFeedback.value" @input="onDelayFeedbackChange">
-                 <span class="text-[9px] font-mono w-12 text-right flex-shrink-0" style="color: var(--text-secondary);">{{ Math.round(audio.delayFeedback.value * 100) }}%</span>
-               </div>
-               <div class="flex items-center gap-2 mb-1">
-                 <span class="text-[9px] font-mono w-8 flex-shrink-0" style="color: var(--text-tertiary);">Mix</span>
-                 <input type="range" class="fx-slider flex-1" min="0" max="1" step="0.01" :value="audio.delayMix.value" @input="onDelayMixChange">
-                 <span class="text-[9px] font-mono w-12 text-right flex-shrink-0" style="color: var(--text-secondary);">{{ Math.round(audio.delayMix.value * 100) }}%</span>
-               </div>
-            </div>
+              class="text-[8px] px-1.5 py-0.5 rounded font-medium"
+              :style="audio.reverbEnabled.value ? 'background:var(--accent-copper-light);color:var(--accent-copper);border:1px solid var(--accent-copper);' : 'background:var(--bg-tertiary);color:var(--text-tertiary);border:1px solid var(--border-secondary);'"
+              @click="toggleReverb"
+            >Reverb {{ audio.reverbEnabled.value ? 'ON' : 'OFF' }}</button>
+            <button
+              class="text-[8px] px-1.5 py-0.5 rounded font-medium"
+              :style="audio.delayEnabled.value ? 'background:var(--accent-copper-light);color:var(--accent-copper);border:1px solid var(--accent-copper);' : 'background:var(--bg-tertiary);color:var(--text-tertiary);border:1px solid var(--border-secondary);'"
+              @click="toggleDelay"
+            >Delay {{ audio.delayEnabled.value ? 'ON' : 'OFF' }}</button>
           </div>
         </div>
+        <div class="flex-1 overflow-y-auto px-2.5 py-1.5 space-y-2">
+          <!-- Reverb Section -->
+          <div>
+            <div class="flex items-center justify-between mb-0.5">
+              <span class="text-[8px] font-semibold uppercase tracking-wider" style="color: var(--text-secondary);">Reverb</span>
+              <select v-model="audio.reverbType.value" @change="onReverbTypeChange" class="text-[9px] font-mono px-1 py-0.5 rounded border-0" style="background: var(--bg-tertiary); color: var(--text-primary); outline: none;">
+                <option value="hall">Hall</option>
+                <option value="room">Room</option>
+                <option value="church">Church</option>
+                <option value="plate">Plate</option>
+                <option value="chamber">Chamber</option>
+                <option value="spring">Spring</option>
+              </select>
+            </div>
+            <div class="flex items-center gap-1.5 mb-0.5">
+               <span class="text-[8px] font-mono w-6 flex-shrink-0" style="color: var(--text-tertiary);">Time</span>
+               <input type="range" class="fx-slider flex-1" min="0.1" max="10" step="0.1" :value="audio.reverbTime.value" @input="onReverbTimeChange">
+               <span class="text-[8px] font-mono w-10 text-right flex-shrink-0" style="color: var(--text-secondary);">{{ audio.reverbTime.value.toFixed(1) }}s</span>
+             </div>
+             <div class="flex items-center gap-1.5 mb-0.5">
+               <span class="text-[8px] font-mono w-6 flex-shrink-0" style="color: var(--text-tertiary);">Mix</span>
+               <input type="range" class="fx-slider flex-1" min="0" max="1" step="0.01" :value="audio.reverbMix.value" @input="onReverbMixChange">
+               <span class="text-[8px] font-mono w-10 text-right flex-shrink-0" style="color: var(--text-secondary);">{{ Math.round(audio.reverbMix.value * 100) }}%</span>
+             </div>
+             <div class="flex items-center gap-1.5 mb-0.5">
+               <span class="text-[8px] font-mono w-6 flex-shrink-0" style="color: var(--text-tertiary);">Early</span>
+               <input type="range" class="fx-slider flex-1" min="0" max="1" step="0.01" :value="audio.reverbEarlyReflections.value" @input="onReverbEarlyChange">
+               <span class="text-[8px] font-mono w-10 text-right flex-shrink-0" style="color: var(--text-secondary);">{{ Math.round(audio.reverbEarlyReflections.value * 100) }}%</span>
+             </div>
+          </div>
+          <div style="border-top: 1px solid var(--border-secondary);"></div>
+          <!-- Delay Section -->
+          <div>
+            <div class="flex items-center justify-between mb-0.5">
+              <span class="text-[8px] font-semibold uppercase tracking-wider" style="color: var(--text-secondary);">Delay</span>
+              <button
+                class="text-[8px] px-1 py-0.5 rounded font-mono"
+                :style="audio.delaySync.value ? 'background:var(--accent-copper-light);color:var(--accent-copper);' : 'background:var(--bg-tertiary);color:var(--text-tertiary);'"
+                @click="toggleDelaySync"
+              >{{ audio.delaySync.value ? 'BPM' : 'ms' }}</button>
+            </div>
+            <div v-if="!audio.delaySync.value" class="flex items-center gap-1.5 mb-0.5">
+               <span class="text-[8px] font-mono w-6 flex-shrink-0" style="color: var(--text-tertiary);">Time</span>
+               <input type="range" class="fx-slider flex-1" min="10" max="2000" step="1" :value="audio.delayTimeMs.value" @input="onDelayTimeChange">
+               <span class="text-[8px] font-mono w-10 text-right flex-shrink-0" style="color: var(--text-secondary);">{{ Math.round(audio.delayTimeMs.value) }}ms</span>
+             </div>
+            <div v-if="audio.delaySync.value" class="flex items-center gap-1.5 mb-0.5">
+               <span class="text-[8px] font-mono" style="color: var(--text-tertiary);">BPM</span>
+               <input type="number" class="flex-1 text-[9px] font-mono px-1 py-0.5 rounded border-0 text-center" style="background: var(--bg-tertiary); color: var(--text-primary); outline: none;" :value="audio.bpm.value" min="20" max="300" @change="onBpmChange" />
+               <span class="text-[8px] font-mono w-12 text-right" style="color: var(--text-secondary);">{{ delayDisplay }}</span>
+             </div>
+            <div class="flex items-center gap-1.5 mb-0.5">
+               <span class="text-[8px] font-mono w-6 flex-shrink-0" style="color: var(--text-tertiary);">Feed</span>
+               <input type="range" class="fx-slider flex-1" min="0" max="0.9" step="0.01" :value="audio.delayFeedback.value" @input="onDelayFeedbackChange">
+               <span class="text-[8px] font-mono w-10 text-right flex-shrink-0" style="color: var(--text-secondary);">{{ Math.round(audio.delayFeedback.value * 100) }}%</span>
+             </div>
+             <div class="flex items-center gap-1.5 mb-0.5">
+               <span class="text-[8px] font-mono w-6 flex-shrink-0" style="color: var(--text-tertiary);">Mix</span>
+               <input type="range" class="fx-slider flex-1" min="0" max="1" step="0.01" :value="audio.delayMix.value" @input="onDelayMixChange">
+               <span class="text-[8px] font-mono w-10 text-right flex-shrink-0" style="color: var(--text-secondary);">{{ Math.round(audio.delayMix.value * 100) }}%</span>
+             </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Row 3: Signal Flow Visualization -->
+    <div class="rounded-xl border overflow-hidden flex-shrink-0" style="background: var(--bg-secondary); border-color: var(--border-primary); box-shadow: var(--shadow-xs);">
+      <div class="px-2.5 py-1 text-[9px] font-semibold uppercase tracking-wider" style="color: var(--text-secondary); border-bottom: 1px solid var(--border-secondary);">
+        Signal Flow
+      </div>
+      <div class="relative" style="height: 52px;">
+        <canvas ref="signalCanvas" class="absolute inset-0 w-full h-full"></canvas>
       </div>
     </div>
   </div>
@@ -233,6 +238,7 @@ const specCanvas = ref(null)
 const fileInput = ref(null)
 const eqCurveCanvas = ref(null)
 const knobContainer = ref(null)
+const signalCanvas = ref(null)
 const viewMode = ref('spectrum')
 
 let animId = null
@@ -696,8 +702,11 @@ function onStopRecording() {
 }
 
 // FX handlers
-function toggleFX() {
-  props.audio.toggleFX(!props.audio.fxEnabled.value)
+function toggleReverb() {
+  props.audio.toggleReverb(!props.audio.reverbEnabled.value)
+}
+function toggleDelay() {
+  props.audio.toggleDelay(!props.audio.delayEnabled.value)
 }
 
 function onReverbTypeChange() {
@@ -749,6 +758,120 @@ function onBpmChange(e) {
   }
 }
 
+// ── Signal Flow Visualization ──
+let signalFlowFrame = 0
+
+function drawSignalFlow() {
+  const canvas = signalCanvas.value
+  if (!canvas) return
+  const ctx = canvas.getContext('2d')
+  const dpr = window.devicePixelRatio || 1
+  const W = canvas.clientWidth, H = canvas.clientHeight
+  if (!W || !H) return
+  canvas.width = W * dpr; canvas.height = H * dpr
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+
+  const cy = H / 2
+
+  // Node definitions: { label, x%, active (reactive) }
+  const isPlaying = props.audio.isPlaying.value
+  const nodes = [
+    { label: 'Source',  pct: 8,  active: isPlaying, color: '#5B7FA5' },
+    { label: 'EQ',      pct: 27, active: isPlaying, color: '#5B7FA5' },
+    { label: 'Reverb',  pct: 48, active: isPlaying && props.audio.reverbEnabled.value, color: '#C4845C' },
+    { label: 'Delay',   pct: 67, active: isPlaying && props.audio.delayEnabled.value, color: '#C4845C' },
+    { label: 'Output',  pct: 90, active: isPlaying, color: '#5B7FA5' },
+  ]
+
+  signalFlowFrame++
+
+  // Draw arrows between nodes
+  for (let i = 0; i < nodes.length - 1; i++) {
+    const from = nodes[i], to = nodes[i + 1]
+    const x1 = W * from.pct / 100 + 24
+    const x2 = W * to.pct / 100 - 24
+    // Arrow is active only if TARGET node is active → breaks at inactive nodes
+    const isActive = isPlaying && to.active
+
+    // Arrow line
+    ctx.beginPath()
+    ctx.moveTo(x1, cy)
+    ctx.lineTo(x2, cy)
+    ctx.strokeStyle = isActive ? 'rgba(91,127,165,0.4)' : 'rgba(200,200,200,0.25)'
+    ctx.lineWidth = isActive ? 2 : 1
+    ctx.setLineDash(isActive ? [] : [3, 4])
+    ctx.stroke()
+    ctx.setLineDash([])
+
+    // Arrowhead
+    if (isActive) {
+      ctx.beginPath()
+      ctx.moveTo(x2, cy)
+      ctx.lineTo(x2 - 6, cy - 4)
+      ctx.lineTo(x2 - 6, cy + 4)
+      ctx.closePath()
+      ctx.fillStyle = 'rgba(91,127,165,0.5)'
+      ctx.fill()
+    }
+
+    // Animated signal dot
+    if (isActive) {
+      const t = ((signalFlowFrame * 2 + i * 30) % 120) / 120
+      const dx = x1 + (x2 - x1) * t
+      const dotSize = 3 + Math.sin(signalFlowFrame * 0.08 + i) * 0.5
+      ctx.beginPath()
+      ctx.arc(dx, cy, dotSize, 0, Math.PI * 2)
+      ctx.fillStyle = 'rgba(91,127,165,0.7)'
+      ctx.fill()
+      // Glow
+      ctx.beginPath()
+      ctx.arc(dx, cy, dotSize * 2.5, 0, Math.PI * 2)
+      ctx.fillStyle = 'rgba(91,127,165,0.12)'
+      ctx.fill()
+    }
+  }
+
+  // Draw nodes
+  nodes.forEach((node, i) => {
+    const x = W * node.pct / 100
+    const boxW = 44, boxH = 24
+    const rx = 6
+
+    // Box
+    ctx.beginPath()
+    ctx.roundRect(x - boxW / 2, cy - boxH / 2, boxW, boxH, rx)
+    if (node.active) {
+      ctx.fillStyle = node.color + '18'
+      ctx.fill()
+      ctx.strokeStyle = node.color
+      ctx.lineWidth = 1.5
+    } else {
+      ctx.fillStyle = '#F5F5F5'
+      ctx.fill()
+      ctx.strokeStyle = '#DDD'
+      ctx.lineWidth = 1
+      ctx.setLineDash([2, 3])
+    }
+    ctx.stroke()
+    ctx.setLineDash([])
+
+    // Label
+    ctx.fillStyle = node.active ? node.color : '#BBB'
+    ctx.font = '9px monospace'
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText(node.label, x, cy - 1)
+
+    // Status indicator (small circle)
+    if (!node.active && i > 0 && i < nodes.length - 1) {
+      ctx.beginPath()
+      ctx.arc(x + boxW / 2 + 5, cy, 2.5, 0, Math.PI * 2)
+      ctx.fillStyle = '#DDD'
+      ctx.fill()
+    }
+  })
+}
+
 // Canvas rendering
 function render() {
   drawWaveform()
@@ -760,6 +883,7 @@ function render() {
   } else {
     drawParticles()
   }
+  drawSignalFlow()
   animId = requestAnimationFrame(render)
 }
 
@@ -955,11 +1079,20 @@ onBeforeUnmount(() => {
 .btn-outline { background: transparent; color: var(--accent-copper); border-color: var(--accent-copper-light); }
 .btn-outline:hover { background: var(--accent-copper-light); color: var(--accent-copper-hover); border-color: var(--accent-copper); }
 .btn-outline:disabled { opacity: 0.3; cursor: not-allowed; }
+.btn-tiny { @apply inline-flex items-center justify-center gap-1 px-1.5 py-0.5 text-[9px] font-semibold rounded-lg border transition-all duration-150 cursor-pointer select-none; }
+.btn-tiny:active { transform: scale(0.96); }
+.btn-tiny:disabled { opacity: 0.3; cursor: not-allowed; }
+.btn-tiny.btn-primary { background: var(--btn-primary-bg); color: var(--btn-primary-text); border-color: var(--btn-primary-border); }
+.btn-tiny.btn-primary:disabled { opacity: 0.3; cursor: not-allowed; }
+.btn-tiny.btn-secondary { background: transparent; color: var(--btn-secondary-text); border-color: var(--btn-secondary-border); }
+.btn-tiny.btn-secondary:disabled { opacity: 0.3; cursor: not-allowed; }
+.btn-tiny.btn-outline { background: transparent; color: var(--accent-copper); border-color: var(--accent-copper-light); }
+.btn-tiny.btn-outline:disabled { opacity: 0.3; cursor: not-allowed; }
 .eq-knob { display: block; cursor: pointer; border-radius: 50%; }
 .eq-knob:hover { box-shadow: 0 0 0 2px rgba(91,127,165,0.2); }
 .eq-knob:active { box-shadow: 0 0 0 3px rgba(91,127,165,0.35); }
-@media (max-width: 640px) { .eq-knob { width: 28px; height: 28px; } }
-@media (max-width: 480px) { .eq-knob { width: 24px; height: 24px; } }
+@media (max-width: 640px) { .eq-knob { width: 26px; height: 26px; } }
+@media (max-width: 480px) { .eq-knob { width: 22px; height: 22px; } }
 .view-toggle {
   width: 26px; height: 26px; display: flex; align-items: center; justify-content: center;
   font-size: 13px; border: 1px solid transparent; border-radius: var(--radius-sm);

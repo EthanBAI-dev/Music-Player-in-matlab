@@ -66,7 +66,8 @@ export function useAudio() {
   let _recordingAnimId = null
 
   // === FX State ===
-  const fxEnabled = ref(false)
+  const reverbEnabled = ref(false)
+  const delayEnabled = ref(false)
   const reverbType = ref('hall')
   const reverbTime = ref(2.0)
   const reverbMix = ref(0.3)
@@ -225,16 +226,18 @@ export function useAudio() {
 
   function applyFXParams() {
     if (!_fxInit) return
-    if (fxEnabled.value) {
-      _reverbWet.gain.value = Math.max(0, Math.min(1, reverbMix.value))
-      _delayWet.gain.value = Math.max(0, Math.min(1, delayMix.value))
-      _delayFb.gain.value = Math.max(0, Math.min(0.9, delayFeedback.value))
-      _delayNode.delayTime.value = getDelaySeconds()
-    } else {
-      _reverbWet.gain.value = 0
-      _delayWet.gain.value = 0
-      _delayFb.gain.value = 0
-    }
+    // Reverb (independent)
+    _reverbWet.gain.value = reverbEnabled.value
+      ? Math.max(0, Math.min(1, reverbMix.value))
+      : 0
+    // Delay (independent)
+    _delayWet.gain.value = delayEnabled.value
+      ? Math.max(0, Math.min(1, delayMix.value))
+      : 0
+    _delayFb.gain.value = delayEnabled.value
+      ? Math.max(0, Math.min(0.9, delayFeedback.value))
+      : 0
+    _delayNode.delayTime.value = getDelaySeconds()
   }
 
   function updateReverbIR() {
@@ -243,8 +246,12 @@ export function useAudio() {
     _reverbNode.buffer = generateIR(ctx, reverbType.value, reverbTime.value, reverbEarlyReflections.value)
   }
 
-  function toggleFX(enable) {
-    fxEnabled.value = enable
+  function toggleReverb(enable) {
+    reverbEnabled.value = enable
+    applyFXParams()
+  }
+  function toggleDelay(enable) {
+    delayEnabled.value = enable
     applyFXParams()
   }
 
@@ -425,8 +432,8 @@ export function useAudio() {
     // Real-time EQ
     updateEQBand, applyEQGains, exportEQ,
     // FX
-    fxEnabled, reverbType, reverbTime, reverbMix, reverbEarlyReflections,
+    reverbEnabled, delayEnabled, reverbType, reverbTime, reverbMix, reverbEarlyReflections,
     delayTimeMs, delayFeedback, delayMix, delaySync, bpm,
-    toggleFX, applyFXParams, updateReverbIR
+    toggleReverb, toggleDelay, applyFXParams, updateReverbIR
   }
 }

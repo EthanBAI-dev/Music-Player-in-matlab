@@ -11,13 +11,20 @@
           </svg>
           <span class="text-sm font-semibold" style="color: var(--text-primary);">Music Player</span>
         </div>
-        <nav class="flex items-center gap-1">
-          <button v-for="tab in tabs" :key="tab.id"
-            class="nav-btn"
-            :class="{ active: currentTab === tab.id }"
-            @click="currentTab = tab.id"
-          >{{ tab.label }}</button>
-        </nav>
+        <div class="flex items-center gap-3">
+          <nav class="flex items-center gap-1">
+            <button v-for="tab in tabs" :key="tab.id"
+              class="nav-btn"
+              :class="{ active: currentTab === tab.id }"
+              @click="currentTab = tab.id"
+            >{{ tab.label }}</button>
+          </nav>
+          <!-- Performance Monitor -->
+          <div class="flex items-center gap-2 px-2 py-1 rounded text-[9px] font-mono" style="background: var(--bg-tertiary); color: var(--text-tertiary); white-space: nowrap;">
+            <span :style="{ color: fpsColor }">{{ fps }} FPS</span>
+            <span v-if="memStr" style="color: var(--text-tertiary);">| {{ memStr }}</span>
+          </div>
+        </div>
       </div>
     </header>
 
@@ -43,7 +50,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { useFFT } from './composables/useFFT.js'
 import { useAudio } from './composables/useAudio.js'
 import MusicPlayer from './components/MusicPlayer.vue'
@@ -59,6 +66,40 @@ const tabs = [
   { id: 'player', label: 'Player' },
   { id: 'synth', label: 'Synth' },
 ]
+
+// ── Performance Monitor ──
+const fps = ref(0)
+const memStr = ref('')
+const fpsColor = ref('var(--text-tertiary)')
+let frameCount = 0
+let lastFpsTime = performance.now()
+let perfAnimId = null
+
+function updatePerf() {
+  frameCount++
+  const now = performance.now()
+  const elapsed = now - lastFpsTime
+  if (elapsed >= 500) {
+    const current = Math.round(frameCount / elapsed * 1000)
+    fps.value = current
+    fpsColor.value = current >= 55 ? 'var(--text-tertiary)' : current >= 30 ? '#F59E0B' : '#EF4444'
+    frameCount = 0
+    lastFpsTime = now
+    // Memory
+    const mem = performance.memory
+    if (mem) {
+      const used = mem.usedJSHeapSize / 1048576
+      const total = mem.jsHeapSizeLimit / 1048576
+      memStr.value = `${used.toFixed(0)} / ${total.toFixed(0)} MB`
+    } else {
+      memStr.value = ''
+    }
+  }
+  perfAnimId = requestAnimationFrame(updatePerf)
+}
+
+onMounted(() => { perfAnimId = requestAnimationFrame(updatePerf) })
+onBeforeUnmount(() => { if (perfAnimId) cancelAnimationFrame(perfAnimId) })
 
 async function onFileLoaded(file) {
   const decoded = await audio.loadFile(file)

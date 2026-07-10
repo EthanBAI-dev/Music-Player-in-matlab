@@ -83,20 +83,21 @@
       </div>
 
       <!-- ─── NOISE ─── -->
-      <div class="gen-card">
+      <div class="gen-card" :class="{ 'noise-off': !noiseEnabled }">
         <div class="gen-card-header">
           <span class="gen-led" :class="{ on: noiseEnabled }"></span>
           <span class="gen-title">NOISE</span>
           <label class="gen-toggle"><input type="checkbox" v-model="noiseEnabled"> ON</label>
         </div>
         <div class="gen-viz-wrap"><canvas ref="noiseVizRef"></canvas></div>
-        <div class="gen-knob-grid gkg-4">
-          <knob-comp label="COLOR"  :val="noiseColor" :min="0" :max="1" :step="0.01" @input="noiseColor = $event" />
+        <div class="gen-knob-grid gkg-3" style="padding:4px 4px 0;">
           <knob-comp label="LEVEL"  :val="synth.noiseLevel.value" :min="0" :max="1" :step="0.01" @input="synth.noiseLevel.value = $event" />
           <knob-comp label="PAN"    :val="noisePan"   :min="-1" :max="1" :step="0.01" @input="noisePan = $event" />
+          <knob-comp label="COLOR"  :val="noiseColor" :min="0" :max="1" :step="0.01" @input="noiseColor = $event" />
         </div>
         <div class="gen-wave-select">
-          <span class="granular-badge">NOISE</span>
+          <button v-for="t in noiseTypes" :key="t.type" class="ws-btn" :class="{ active: synth.noiseType.value === t.type }"
+            @click="synth.setNoiseType(t.type)">{{ t.label }}</button>
         </div>
       </div>
 
@@ -317,7 +318,12 @@ watch(pitchWheel, v => synth.applyPitchBend(v))
 watch(modWheel, v => synth.applyModWheel(v))
 
 // ── Noise ──
-const noiseEnabled = ref(true)
+const noiseTypes = [
+  { type: 'white', label: 'White' },
+  { type: 'pink', label: 'Pink' },
+  { type: 'brown', label: 'Brown' },
+]
+const noiseEnabled = ref(false)
 const noiseColor = ref(0.5)
 const noisePan = ref(0)
 
@@ -529,6 +535,10 @@ watch(() => synth.osc1.type, () => drawWaveShape(synth.osc1.type, osc1WaveRef.va
 watch(() => synth.osc2.type, () => drawWaveShape(synth.osc2.type, osc2WaveRef.value))
 
 // ── Noise canvas ──
+// Cached noise waveform: regenerate only when noise is active
+const noiseWaveData = new Float32Array(121)
+let noiseWaveSeeded = false
+
 function drawNoiseViz() {
   const canvas = noiseVizRef.value
   if (!canvas) return
@@ -540,12 +550,25 @@ function drawNoiseViz() {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
   ctx.clearRect(0, 0, W, H)
   ctx.fillStyle = '#0E1215'; ctx.fillRect(0, 0, W, H)
-  ctx.strokeStyle = 'rgba(102,187,106,0.5)'; ctx.lineWidth = 1
+
+  // Seed on first call so it's never blank
+  if (!noiseWaveSeeded) {
+    for (let i = 0; i <= 120; i++) noiseWaveData[i] = Math.random() * 2 - 1
+    noiseWaveSeeded = true
+  }
+  // Regenerate only when noise is producing sound
+  if (noiseEnabled.value && synth.noiseLevel.value > 0) {
+    for (let i = 0; i <= 120; i++) noiseWaveData[i] = Math.random() * 2 - 1
+  }
+  // Otherwise keep the cached static waveform
+
+  // Draw the (cached) noise waveform
+  ctx.strokeStyle = noiseEnabled.value ? 'rgba(102,187,106,0.5)' : 'rgba(102,187,106,0.15)'
+  ctx.lineWidth = 1
   ctx.beginPath()
   for (let i = 0; i <= 120; i++) {
     const x = (i / 120) * W
-    const r = Math.random() * 2 - 1
-    const y = H / 2 + r * H * 0.35
+    const y = H / 2 + noiseWaveData[i] * H * 0.35
     i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y)
   }
   ctx.stroke()
@@ -578,7 +601,25 @@ function drawFilterCurve(canvas, cutoff, resonance, type) {
     const y = H / 2 - gain * H / 24
     i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y)
   }
-  ctx.fillStyle = 'rgba(41,182,246,0.15)'; ctx.lineTo(W, H); ctx.closePath(); ctx.fill()
+  // Fill: extend curve to bottom-right and close (no stroke, only fill)
+  ctx.lineTo(W, H)
+  ctx.lineTo(0, H)
+  ctx.closePath()
+  ctx.fillStyle = 'rgba(41,182,246,0.15)'
+  ctx.fill()
+  // Stroke: redraw the curve line only (no closePath)
+  ctx.beginPath()
+  for (let i = 0; i <= 100; i++) {
+    const p = i / 100, x = i / 100 * W
+    let gain = 0
+    if (isLow) { gain = p < c ? 0 : -12 * (p - c) / (1 - c + 0.01) }
+    else if (isHigh) { gain = p > c ? 0 : -12 * (c - p) / (c + 0.01) }
+    else if (isNotch) { gain = -Math.abs(p - c) * 12 }
+    else { gain = -(p - c) * 6 }
+    gain += r * 3 * (1 - Math.abs(p - c) * 2)
+    const y = H / 2 - gain * H / 24
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y)
+  }
   ctx.strokeStyle = '#29B6F6'; ctx.lineWidth = 1.5; ctx.stroke()
 }
 
@@ -933,6 +974,9 @@ onBeforeUnmount(() => {
 .gen-title { font-size: 10px; font-weight: 700; letter-spacing: 1.5px; color: var(--s-text); }
 .gen-toggle { margin-left: auto; font-size: 8px; color: var(--s-text2); display: flex; align-items: center; gap: 3px; cursor: pointer; }
 .gen-toggle input { accent-color: var(--s-green); }
+.gen-card.noise-off { opacity: 0.55; }
+.gen-card.noise-off .gen-title,
+.gen-card.noise-off .gen-led { opacity: 0.4; }
 .gen-viz-wrap { height: 60px; position: relative; background: #0E1215; border-bottom: 1px solid var(--s-border); }
 .gen-viz-wrap canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
 .granular-viz { height: 60px; }

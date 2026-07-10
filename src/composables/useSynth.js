@@ -1,4 +1,4 @@
-import { ref, reactive } from 'vue'
+import { ref, reactive, watch } from 'vue'
 import * as Tone from 'tone'
 
 // ── Utility ──────────────────────────────────────────────────────────
@@ -59,7 +59,7 @@ function makeWarpCurve(amount, samples = 256) {
 
 // ── Presets ──────────────────────────────────────────────────────────
 const builtInPresets = [
-  { name: 'Default', osc1: { ...defaultOsc1 }, osc2: { ...defaultOsc2 }, adsr: { ...defaultADSR }, filter: { ...defaultFilter }, filter2: { ...defaultFilter2 }, lfo: { ...defaultLFO }, fx: { ...defaultFX }, noiseLevel: 0 },
+  { name: 'Default', osc1: { ...defaultOsc1 }, osc2: { ...defaultOsc2 }, adsr: { ...defaultADSR }, filter: { ...defaultFilter }, filter2: { ...defaultFilter2 }, lfo: { ...defaultLFO }, fx: { ...defaultFX }, noiseLevel: 0.4, noiseType: 'white' },
   { name: 'Warm Pad', osc1: { type: 'sawtooth', gain: 0.5, detune: 5, octave: 0, active: true, pan: 0, unison: 2, wtPos: 0.5, blend: 0.6, warp: 0 }, osc2: { type: 'sawtooth', gain: 0.5, detune: -5, octave: 0, active: true, pan: 0, unison: 2, wtPos: 0.3, blend: 0.5, warp: 0 }, adsr: { attack: 0.5, decay: 0.4, sustain: 0.8, release: 1.5 }, filter: { type: 'lowpass', cutoff: 3000, resonance: 0.5, envAmt: 0.4 }, filter2: { type: 'lowpass', cutoff: 20000, resonance: 0, active: false }, lfo: { type: 'sine', rate: 2.0, amount: 0.15, target: 'cutoff' }, fx: { reverb: 0.6, delay: 0.2, feedback: 0.2 }, noiseLevel: 0 },
   { name: 'Lead', osc1: { type: 'square', gain: 0.6, detune: 0, octave: 0, active: true, pan: 0, unison: 3, wtPos: 0.8, blend: 0.3, warp: 0.2 }, osc2: { type: 'triangle', gain: 0.3, detune: 7, octave: 0, active: true, pan: 0, unison: 1, wtPos: 0.2, blend: 0.5, warp: 0 }, adsr: { attack: 0.01, decay: 0.2, sustain: 0.7, release: 0.3 }, filter: { type: 'lowpass', cutoff: 8000, resonance: 0.6, envAmt: 0.3 }, filter2: { type: 'lowpass', cutoff: 20000, resonance: 0, active: false }, lfo: { type: 'sine', rate: 5.0, amount: 0.2, target: 'pitch' }, fx: { reverb: 0.3, delay: 0.1, feedback: 0.1 }, noiseLevel: 0 },
   { name: 'Bass', osc1: { type: 'sawtooth', gain: 0.7, detune: -5, octave: -1, active: true, pan: 0, unison: 4, wtPos: 0.6, blend: 0.2, warp: 0.3 }, osc2: { type: 'square', gain: 0.3, detune: 0, octave: -1, active: true, pan: 0, unison: 1, wtPos: 0.7, blend: 0.5, warp: 0 }, adsr: { attack: 0.01, decay: 0.2, sustain: 0.6, release: 0.15 }, filter: { type: 'lowpass', cutoff: 600, resonance: 3.0, envAmt: 0.2 }, filter2: { type: 'lowpass', cutoff: 20000, resonance: 0, active: false }, lfo: { type: 'sine', rate: 4.0, amount: 0.1, target: 'cutoff' }, fx: { reverb: 0.1, delay: 0, feedback: 0 }, noiseLevel: 0 },
@@ -204,7 +204,8 @@ export function useSynth() {
   const filter2Cfg = reactive({ ...defaultFilter2 })
   const lfoCfg = reactive({ ...defaultLFO })
   const fx = reactive({ ...defaultFX })
-  const noiseLevel = ref(0)
+  const noiseLevel = ref(0.4)
+  const noiseType = ref('white')
   const masterVol = ref(0.8)
   const currentPreset = ref('Default')
 
@@ -371,7 +372,7 @@ export function useSynth() {
     lfoNode.connect(lfoGain)
     lfoNode.start()
 
-    noiseNode = new Tone.Noise('white')
+    noiseNode = new Tone.Noise(noiseType.value)
     noiseGain = new Tone.Gain(noiseLevel.value)
     noiseNode.connect(noiseGain)
     noiseGain.connect(masterGain)
@@ -381,6 +382,11 @@ export function useSynth() {
 
     initialized = true
   }
+
+  // Sync noiseLevel knob changes to the actual audio gain node
+  watch(noiseLevel, (val) => {
+    if (initialized && noiseGain) noiseGain.gain.value = val
+  })
 
   // ── Note On ──
   function noteOn(midi, velocity = 0.8) {
@@ -706,6 +712,7 @@ export function useSynth() {
     Object.assign(lfoCfg, p.lfo)
     Object.assign(fx, p.fx)
     noiseLevel.value = p.noiseLevel ?? 0
+  noiseType.value = p.noiseType || 'white'
     currentPreset.value = p.name
     updateFilter()
     updateFilter2()
@@ -724,7 +731,7 @@ export function useSynth() {
     const p = {
       name, osc1: { ...osc1 }, osc2: { ...osc2 },
       adsr: { ...adsr }, filter: { ...filterCfg }, filter2: { ...filter2Cfg },
-      lfo: { ...lfoCfg }, fx: { ...fx }, noiseLevel: noiseLevel.value,
+      lfo: { ...lfoCfg }, fx: { ...fx }, noiseLevel: noiseLevel.value, noiseType: noiseType.value,
     }
     const idx = presets.value.findIndex(pr => pr.name === name)
     if (idx >= 0) presets.value[idx] = p
@@ -785,9 +792,19 @@ export function useSynth() {
     })
   }
 
+  // ── Noise type ──
+  function setNoiseType(type) {
+    noiseType.value = type
+    if (!initialized || !noiseNode) return
+    try { noiseNode.stop(); noiseNode.dispose() } catch (_) {}
+    noiseNode = new Tone.Noise(type)
+    if (noiseGain) noiseNode.connect(noiseGain)
+    noiseNode.start()
+  }
+
   return {
     osc1, osc2, adsr, filterCfg, filter2Cfg, lfoCfg, fx,
-    noiseLevel, masterVol, presets, currentPreset,
+    noiseLevel, noiseType, masterVol, presets, currentPreset,
     isBlackKey,
     // Arp
     arpMode, arpRate, arpGate, arpSwing, arpOctaveRange, arpSteps,
@@ -800,5 +817,6 @@ export function useSynth() {
     loadPreset, savePreset, deletePreset,
     getAnalyser, dispose,
     applyPitchBend, applyModWheel,
+    setNoiseType,
   }
 }
